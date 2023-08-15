@@ -24,15 +24,24 @@
     <ClCompile Include="src\translator_capi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\functions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\translator.h">
+    <ClInclude Include="include\ghassanpl\translator\translator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\translator.hpp">
+    <ClInclude Include="include\ghassanpl\translator\translator.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\translator_capi.h">
+    <ClInclude Include="include\ghassanpl\translator\translator_capi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ghassanpl\translator\detail\utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ghassanpl\translator\detail\functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

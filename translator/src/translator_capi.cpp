@@ -60,9 +60,9 @@ void translator_set_unknown_func_eval(translator_context* context, translator_ev
 {
 	assert(context);
 	if (func)
-		self->unknown_func_eval = bind_c_eval_func(func, func_user_data);
+		self->unknown_func_handler() = bind_c_eval_func(func, func_user_data);
 	else
-		self->unknown_func_eval = {};
+		self->unknown_func_handler() = {};
 }
 
 void translator_set_unknown_var_eval(translator_context* context, unknown_var_eval_func func, void* user_data)
@@ -70,12 +70,12 @@ void translator_set_unknown_var_eval(translator_context* context, unknown_var_ev
 	assert(context);
 	if (func)
 	{
-		self->unknown_var_value_getter = [func, user_data](cpp_context& in_context, std::string_view name) {
+		self->unknown_var_value_getter() = [func, user_data](cpp_context& in_context, std::string_view name) {
 			return take_result(func(&in_context, std::string{ name }.c_str(), user_data));
 		};
 	}
 	else
-		self->unknown_var_value_getter = {};
+		self->unknown_var_value_getter() = {};
 }
 
 void translator_set_error_handler(translator_context* context, error_handler_func func, void* user_data)
@@ -83,12 +83,12 @@ void translator_set_error_handler(translator_context* context, error_handler_fun
 	assert(context);
 	if (func)
 	{
-		self->error_handler = [func, user_data](cpp_context const& in_context, std::string_view error) {
-			return in_context.json_to_string(take_result(func(&in_context, std::string{ error }.c_str(), user_data)));
+		self->error_handler() = [func, user_data](cpp_context const& in_context, std::string_view error) {
+			return in_context.value_to_string(take_result(func(&in_context, std::string{ error }.c_str(), user_data)));
 		};
 	}
 	else
-		self->error_handler = {};
+		self->error_handler() = {};
 }
 
 value_ref translator_set_user_var(translator_context* context, const char* name, value_ref v)
@@ -106,29 +106,34 @@ value_ref translator_set_local_user_var(translator_context* context, const char*
 	return to_value_ref(self->set_user_var(name, v ? to_json(v) : nullptr, true));
 }
 
-void translator_set_own_function(translator_context* context, const char* name, translator_eval_func func, void* func_user_data)
+void translator_bind_function(translator_context* context, const char* signature, translator_eval_func func, void* func_user_data)
 {
 	assert(context);
-	assert(name);
+	assert(signature);
 	assert(func);
-	self->functions[name] = bind_c_eval_func(func, func_user_data);
+	//self->functions[name] = bind_c_eval_func(func, func_user_data);
+	self->bind_function(signature, bind_c_eval_func(func, func_user_data));
 }
+/*
 
-bool translator_function_exists(translator_context* context, const char* name)
+bool translator_function_exists(translator_context* context, const char* signature)
 {
 	assert(context);
-	return self->find_func(name) != nullptr;
+	assert(signature);
+	return !self->find_functions_by_signature(signature).empty();
 }
 
-bool translator_has_own_function(translator_context* context, const char* name)
+bool translator_has_own_function(translator_context* context, const char* signature)
 {
 	assert(context);
-	return self->functions.find(name) != self->functions.end();
+	assert(signature);
+	return !self->find_functions_by_signature(signature, true).empty();
 }
 
-void translator_erase_own_function(translator_context* context, const char* name)
+void translator_erase_own_function(translator_context* context, const char* signature)
 {
 	assert(context);
+	assert(signature);
 	self->functions.erase(name);
 }
 
@@ -137,6 +142,7 @@ void translator_clear_own_functions(translator_context* context)
 	assert(context);
 	self->functions.clear();
 }
+*/
 
 value_ref translator_user_var(translator_context* context, const char* name)
 {
@@ -149,7 +155,7 @@ value_ref translator_get_user_var(translator_context* context, const char* name)
 {
 	assert(context);
 	assert(name);
-	auto [owner, it] = self->find_in_user_storage(name);
+	auto [owner, it] = self->find_variable(name);
 	if (!owner) return {};
 	return to_value_ref(it->second);
 }
@@ -158,30 +164,30 @@ void translator_remove_user_var(translator_context* context, const char* name, b
 {
 	assert(context);
 	assert(name);
-	auto [owner, it] = self->find_in_user_storage(name);
+	auto [owner, it] = self->find_variable(name);
 	if (!owner) return;
 
 	if (!only_local || context == owner)
-		owner->user_storage.erase(it);
+		owner->context_variables().erase(it);
 }
 
 void translator_clear_local_user_vars(translator_context* context)
 {
 	assert(context);
-	self->user_storage.clear();
+	self->context_variables().clear();
 }
 
 bool translator_is_var_local(translator_context* context, const char* name)
 {
 	assert(context);
-	auto [owner, it] = self->find_in_user_storage(name);
+	auto [owner, it] = self->find_variable(name);
 	return context == owner;
 }
 
 translator_context* translator_user_var_owner_context(translator_context* context, const char* name)
 {
 	assert(context);
-	auto [owner, it] = self->find_in_user_storage(name);
+	auto [owner, it] = self->find_variable(name);
 	return owner;
 }
 

@@ -11,12 +11,15 @@ struct translator_context
 	struct translator_context* parent_context;
 	void* user_data;
 
+	/// TODO: Respect these
 	struct
 	{
 		bool parse_escapes;
 		char opening_delimiter;
 		char closing_delimiter;
 		char var_symbol;
+		bool maintain_call_stack;
+		bool call_stack_store_call_string;
 	} options;
 };
 typedef struct translator_context translator_context;
@@ -42,11 +45,11 @@ void translator_set_error_handler(translator_context* context, error_handler_fun
 
 /// TODO: Enumerating and retrieving eval_funcs
 
-void translator_set_own_function(translator_context* context, const char* name, translator_eval_func func, void* func_user_data);
-bool translator_has_own_function(translator_context* context, const char* name);
-void translator_erase_own_function(translator_context* context, const char* name);
+void translator_bind_function(translator_context* context, const char* signature, translator_eval_func func, void* func_user_data);
+bool translator_function_exists(translator_context* context, const char* signature);
+bool translator_has_own_function(translator_context* context, const char* signature);
+void translator_erase_own_function(translator_context* context, const char* signature);
 void translator_clear_own_functions(translator_context* context);
-bool translator_function_exists(translator_context* context, const char* name);
 
 /// TODO: Enumerating user vars
 

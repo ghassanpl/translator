@@ -2,8 +2,17 @@
 #include<string.h>
 #include <charconv>
 
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+
 namespace translator
 {
+	using fmt::format;
+
+	constexpr bool ismodifier(char cp) noexcept 
+	{ 
+		return cp == '?' || cp == '*' || cp == '+';
+	}
 
 	constexpr bool isspace(char32_t cp) noexcept { return (cp >= 9 && cp <= 13) || cp == 32; }
 
@@ -22,7 +31,7 @@ namespace translator
 		return !str.empty() && str.front() == with;
 	}
 
-	char consume(std::string_view& str)
+	char consume(std::string_view& str) noexcept
 	{
 		if (str.empty())
 			return {};
@@ -31,7 +40,7 @@ namespace translator
 		return result;
 	}
 
-	bool consume(std::string_view& str, char val)
+	bool consume(std::string_view& str, char val) noexcept
 	{
 		if (starts_with(str, val))
 		{
@@ -41,7 +50,7 @@ namespace translator
 		return false;
 	}
 
-	std::string_view consume_until(std::string_view& str, char c)
+	std::string_view consume_until(std::string_view& str, char c) noexcept
 	{
 		const auto start = str.data();
 		while (!str.empty() && str[0] != c)
@@ -50,7 +59,7 @@ namespace translator
 	}
 
 	template <typename FUNC>
-	std::string_view consume_until(std::string_view& str, FUNC&& pred)
+	std::string_view consume_until(std::string_view& str, FUNC&& pred) noexcept
 	{
 		const auto start = str.data();
 		while (!str.empty() && !pred(str[0]))
@@ -58,18 +67,19 @@ namespace translator
 		return std::string_view{ start, size_t(str.data() - start) };
 	}
 
-	static auto default_json_value_to_str_func(json const& j) -> json {
+	auto default_json_value_to_str_func(context const& c, json const& j) -> std::string {
 		switch (j.type())
 		{
 		case json::value_t::string: return j.get_ref<json::string_t const&>();
 		case json::value_t::binary: return "<binary>";
 		case json::value_t::null: return "<null>";
+		case json::value_t::array: return c.array_to_string(j);
 		default: return j.dump();
 		}
 	}
 
-	context::context(context* parent)
-		: json_value_to_str_func(&default_json_value_to_str_func)
+	context::context(context* parent) noexcept
+		: m_json_value_to_str_func(&default_json_value_to_str_func)
 	{
 		parent_context = (translator_context*)parent;
 		user_data = nullptr;
@@ -77,10 +87,10 @@ namespace translator
 			options = parent->options;
 	}
 
-	context::context()
+	context::context() noexcept
 		: context(nullptr)
 	{
-		options.parse_escapes = false;
+		options = {};
 		options.opening_delimiter = '[';
 		options.closing_delimiter = ']';
 		options.var_symbol = '.';
@@ -209,12 +219,12 @@ namespace translator
 		return consume_atom(sexp_str);
 	}
 
-	std::pair<context*, context::user_storage_iterator> context::find_in_user_storage(std::string_view name)
+	std::pair<context*, std::map<std::string, json, std::less<>>::iterator> context::find_variable(std::string_view name)
 	{
-		if (auto it = user_storage.find(name); it != user_storage.end())
+		if (auto it = m_context_variables.find(name); it != m_context_variables.end())
 			return std::pair{ this, it };
 		else
-			return parent_context ? parent()->find_in_user_storage(name) : std::pair<context*, decltype(it)>{};
+			return parent_context ? parent()->find_variable(name) : std::pair<context*, decltype(it)>{};
 	}
 
 	std::string context::interpolate(std::string_view str)
@@ -231,7 +241,7 @@ namespace translator
 			{
 				json call = consume_list(str);
 				json call_result = safe_eval(std::move(call));
-				result += json_to_string(call_result);
+				result += value_to_string(call_result);
 			}
 		}
 		return result;
@@ -239,20 +249,20 @@ namespace translator
 
 	json context::user_var(std::string_view name)
 	{
-		auto [owning_context, iterator] = find_in_user_storage(name);
+		auto [owning_context, iterator] = find_variable(name);
 		if (owning_context)
 			return iterator->second;
-		return unknown_var_value_getter ? unknown_var_value_getter(*this, name) : nullptr;
+		return m_unknown_var_value_getter ? m_unknown_var_value_getter(*this, name) : nullptr;
 	}
 
 	json& context::set_user_var(std::string_view name, json val, bool force_local)
 	{
-		auto* storage = &user_storage;
+		auto* storage = &m_context_variables;
 		if (!force_local)
 		{
-			auto [owning_store, it] = find_in_user_storage(name);
+			auto [owning_store, it] = find_variable(name);
 			if (owning_store)
-				storage = &owning_store->user_storage;
+				storage = &owning_store->m_context_variables;
 		}
 		auto it = storage->find(name);
 		if (it == storage->end())
@@ -260,93 +270,146 @@ namespace translator
 		return it->second = std::move(val);
 	}
 
-	context::eval_func const* context::get_unknown_func_eval() const noexcept
-	{
-		if (unknown_func_eval)
-			return &unknown_func_eval;
-		if (parent_context)
-			return parent()->get_unknown_func_eval();
-		return nullptr;
-	}
-
-	context::eval_func const* context::find_func(std::string_view name) const
-	{
-		if (auto it = functions.find(name); it != functions.end())
-			return &it->second;
-		if (parent_context)
-			return parent()->find_func(name);
-		return get_unknown_func_eval();
-	}
-
-	json context::eval_call(std::vector<json> args)
+	json context::eval_list(std::vector<json> args)
 	{
 		if (args.empty())
 			return nullptr;
 
-		std::string funcname;
-		std::vector<json> arguments;
-		const auto args_count = args.size();
-		const bool infix = (args_count % 2) == 1;
+		const auto elem_count = args.size();
+		const bool infix = (elem_count % 2) == 1;
 
-		if (args_count == 1)
+		if (args.size() == 1 && args[0].is_string() && !args[0].empty() && std::string_view{ args[0] } [0] == '.')
+			return user_var(std::string_view{ args[0] }.substr(1));
+
+		auto function_candidates = this->find_functions(args);
+		if (function_candidates.empty())
+		{
+			if (auto unknown = get_unknown_func_handler())
+			{
+				return call(unknown, std::move(args), array_to_string(args));
+			}
+			else
+			{
+				std::vector<std::string> signatures; /// = find_closest(args) | transform(to_signature)
+				if (signatures.empty())
+					return report_error(format("function for call '{}' not found", array_to_string(args)));
+				else
+					return report_error(format("function for call '{}' not found, did you mean:\n{}?", array_to_string(args), fmt::join(signatures, "?\n")));
+			}
+		}
+		else if (function_candidates.size() > 1)
+		{
+			std::vector<std::string> signatures; /// = function_candidates | transform(to_signature)
+			return report_error(format("multiple functions for call '{}' found:", array_to_string(args), fmt::join(signatures, "\n")));
+		}
+
+		std::string call_frame_desc;
+		if (options.maintain_call_stack && options.call_stack_store_call_string)
+			call_frame_desc = array_to_string(args);
+
+		std::vector<json> arguments;
+		arguments.reserve(elem_count / 2 + infix);
+		if (elem_count == 1)
 		{
 			if (args[0].is_string() && starts_with(args[0], '.'))
 				return user_var(std::string_view{ args[0] }.substr(1));
-
-			funcname = args[0];
-			arguments = std::move(args);
 		}
 		else
 		{
-			arguments.emplace_back(); /// placeholder for name so we don't have to insert later
 			if (infix)
 			{
 				arguments.push_back(std::move(args[0]));
-				funcname += ':';
 			}
 
-			/// TODO: We need to put every variadic run of arguments into a separate list!
-			std::string last_function_identifier;
-			bool argument_variadic = false;
-			for (size_t i = infix; i < args_count; i += 2)
-			{
-				auto const& function_identifier = args[i];
-				if (function_identifier.is_string() && !std::string_view{ function_identifier }.empty())
-				{
-					if (last_function_identifier == std::string_view{ function_identifier })
-					{
-						if (!argument_variadic)
-						{
-							funcname.back() = '*';
-							funcname += ':';
-							argument_variadic = true;
-						}
-					}
-					else
-					{
-						argument_variadic = false;
-						funcname += function_identifier;
-						funcname += ':';
-						last_function_identifier = function_identifier;
-					}
-					arguments.push_back(std::move(args[i + 1]));
-				}
-				else
-					return report_error("expected function name part, got: " + function_identifier.dump());
-			}
-
-			arguments[0] = funcname;
+			/// TODO: Go through the function signature and if we find a variadic parameter, make an array and swallow the arguments
+			for (size_t i = infix; i < elem_count; i += 2)
+				arguments.push_back(std::move(args[i + 1]));
 		}
 
-		if (eval_func const* func = find_func(funcname))
-			return (*func)(*this, std::move(arguments));
-
-		return report_error("func with name '" + funcname + "' not found");
+		assert(function_candidates[0]);
+		return call(function_candidates[0], std::move(arguments), std::move(call_frame_desc));
 	}
 
-	std::string context::json_to_string(json const& j) const
+	json context::call(defined_function const* func, std::vector<json> arguments, std::string call_frame_desc)
 	{
-		return json_value_to_str_func ? json_value_to_str_func(j) : j.dump();
+		assert(func);
+		assert(func->func);
+
+		if (options.maintain_call_stack)
+		{
+			auto& call_frame = m_call_stack.emplace_back();
+			if (options.call_stack_store_call_string)
+				call_frame.debug_call_sig = std::move(call_frame_desc);
+		}
+
+		auto result = func->func(*this, std::move(arguments));
+
+		if (options.maintain_call_stack)
+			m_call_stack.pop_back();
+
+		return result;
+	}
+
+	std::string context::value_to_string(json const& j) const
+	{
+		if (m_json_value_to_str_func)
+			return m_json_value_to_str_func(*this, j);
+		return j.dump();
+	}
+
+	std::string context::array_to_string(std::vector<json> const& arguments) const
+	{
+		return format("[{}]", join(arguments, " ", [this](json const& v) { return value_to_string(v); }));
+	}
+
+	void context::assert_args(std::vector<json> const& args, size_t arg_count) const
+	{
+		if (args.size() != arg_count)
+			throw std::runtime_error{ report_error(format("function {} requires exactly {} arguments, {} given", array_to_string(args), arg_count, args.size() - 1)) };
+	}
+
+	void context::assert_args(std::vector<json> const& args, size_t min_args, size_t max_args) const
+	{
+		if (args.size() < min_args && args.size() >= max_args)
+			throw std::runtime_error{ report_error(format("function {} requires between {} and {} arguments, {} given", array_to_string(args), min_args, max_args, args.size())) };
+	}
+
+	void context::assert_min_args(std::vector<json> const& args, size_t arg_count) const
+	{
+		if (args.size() < arg_count)
+			throw std::runtime_error{ report_error(format("function {} requires at least {} arguments, {} given", array_to_string(args), arg_count, args.size())) };
+	}
+
+	json::value_t context::assert_arg(std::vector<json> const& args, size_t arg_num, json::value_t type) const
+	{
+		if (arg_num >= args.size())
+			throw std::runtime_error{ report_error(format("function {} requires {} arguments, {} given", array_to_string(args), arg_num, args.size())) };
+
+		if (type != json::value_t::discarded && args[arg_num].type() != type)
+		{
+			throw std::runtime_error{ report_error(format("argument #{} to function {} must be of type {}, {} given",
+				arg_num, array_to_string(args), json(type).type_name(), args[arg_num].type_name())) };
+		}
+
+		return args[arg_num].type();
+	}
+
+	json context::eval_arg(std::vector<json>& args, size_t n, json::value_t type)
+	{
+		assert_arg(args, n, type);
+		return eval(std::move(args[n]));
+	}
+
+	void context::eval_args(std::vector<json>& args, size_t n)
+	{
+		assert_args(args, n);
+		for (auto& arg: args)
+			arg = eval(std::move(arg));
+	}
+
+	void context::eval_args(std::vector<json>& args)
+	{
+		eval_args(args, args.size());
 	}
 
 	json context::eval(json const& val)
@@ -360,32 +423,26 @@ namespace translator
 		if (!val.is_array())
 			return val;
 
-		return eval_call(val.get_ref<json::array_t const&>());
+		return eval_list(val.get_ref<json::array_t const&>());
 	}
 
 	json context::safe_eval(json const& val)
 	{
-		try
-		{
-			return eval(val);
-		}
-		catch (e_scope_terminator const& e)
-		{
-			return report_error("'" + e.type() + "' not in loop");
-		}
+		return safe_eval(json{ val });
 	}
+
 	json context::eval(json&& val)
 	{
 		if (val.is_string())
 		{
 			if (auto str = std::string_view{ val }; starts_with(str, options.var_symbol))
-				return this->user_var(str);
+				return this->user_var(str.substr(1));
 		}
 
-		if (!val.is_array())
-			return val;
+		if (val.is_array())
+			return eval_list(std::move(val.get_ref<json::array_t&>()));
 
-		return eval_call(std::move(val.get_ref<json::array_t&>()));
+		return val;
 	}
 
 	json context::safe_eval(json&& value)
@@ -396,7 +453,7 @@ namespace translator
 		}
 		catch (e_scope_terminator const& e)
 		{
-			return report_error("'" + e.type() + "' not in loop");
+			return report_error(format("'{}' not in loop", e.type()));
 		}
 	}
 
