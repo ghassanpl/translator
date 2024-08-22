@@ -183,10 +183,29 @@ namespace translator
 		tree_type const& in_tree, 
 		std::vector<json>::const_iterator name_it, 
 		std::vector<json>::const_iterator names_end,
-		std::vector<defined_function const*>& found
+		std::set<defined_function const*>& found
 	) const
 	{
 		std::vector<std::pair<std::vector<json>::const_iterator, tree_type::const_iterator>> candidates;
+
+		/// Look for optional parameters from this point
+		//if (name_it == names_end)
+		{
+			for (auto& el : in_tree)
+			{
+				if (el.modifier == '*')
+				{
+					if (el.leaf)
+						found.insert(el.leaf);
+					else
+						find_local_functions(el.child_elements, name_it, names_end, found);
+				}
+			}
+			//return;
+		}
+
+		if (name_it == names_end)
+			return;
 
 		auto [begin, end] = in_tree.equal_range(std::string_view{ *name_it });
 		for (auto element = begin; element != end && name_it != names_end; ++element)
@@ -205,7 +224,10 @@ namespace translator
 			}
 			else if (element->modifier == '*')
 			{
-				throw "unimplemeted";
+				while ((name += 2) != names_end && *name == element->name)
+					;
+
+				candidates.push_back({ name, element });
 			}
 			else
 			{
@@ -216,15 +238,17 @@ namespace translator
 		for (auto const& candidate : candidates)
 		{
 			if (candidate.first == names_end && candidate.second->leaf)
-				found.push_back(candidate.second->leaf);
+				found.insert(candidate.second->leaf);
 			else if (candidate.first != names_end)
+				find_local_functions(candidate.second->child_elements, candidate.first, names_end, found);
+			else if (candidate.first == names_end && candidate.second->child_elements.size() > 0)
 				find_local_functions(candidate.second->child_elements, candidate.first, names_end, found);
 		}
 	}
 
 	std::vector<defined_function const*> context::find_local_functions(std::vector<json> const& arguments) const
 	{
-		std::vector<defined_function const*> result;
+		std::set<defined_function const*> result;
 		if (arguments.size() == 1) /// no args
 		{
 			if (auto it = m_functions_by_sig.find(arguments[0]); it != m_functions_by_sig.end())
@@ -235,7 +259,7 @@ namespace translator
 			find_local_functions(m_infix_function_tree, arguments.begin() + 1, arguments.end(), result);
 		else /// prefix
 			find_local_functions(m_prefix_function_tree, arguments.begin() + 0, arguments.end(), result);
-		return result;
+		return { result.begin(), result.end() };
 	}
 
 }

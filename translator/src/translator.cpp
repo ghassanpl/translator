@@ -270,12 +270,38 @@ namespace translator
 		std::string result;
 		if (!parsed.is_array())
 			return report_error("Invalid parsed value: must be an array of strings or call arrays");
-		for (auto& r : parsed)
+		for (auto const& r : parsed)
 		{
 			if (r.is_array())
-				safe_eval(r);
+			{
+				json call_result = safe_eval(r);
+				result += value_to_string(call_result);
+			}
 			else if (r.is_string())
 				result += r.get_ref<json::string_t const&>();
+			else
+				return report_error("Invalid parsed value: must be an array of strings or call arrays");
+		}
+		return result;
+	}
+
+	std::string context::interpolate_parsed(json&& parsed)
+	{
+		std::string result;
+		if (!parsed.is_array())
+			return report_error("Invalid parsed value: must be an array of strings or call arrays");
+		for (auto&& r : std::move(parsed))
+		{
+			if (r.is_array())
+			{
+				json call_result = safe_eval(std::move(r));
+				result += value_to_string(call_result);
+			}
+			else if (r.is_string())
+			{
+				std::string el = std::move(r.get_ref<json::string_t&>());
+				result += std::move(el);
+			}
 			else
 				return report_error("Invalid parsed value: must be an array of strings or call arrays");
 		}
@@ -335,7 +361,7 @@ namespace translator
 		else if (function_candidates.size() > 1)
 		{
 			std::vector<std::string> signatures; /// = function_candidates | transform(to_signature)
-			return report_error(format("multiple functions for call '{}' found:", array_to_string(args), join(signatures, "\n")));
+			return report_error(format("multiple functions for call '{}' found: {}", array_to_string(args), join(signatures, "\n")));
 		}
 
 		std::string call_frame_desc;

@@ -24,6 +24,7 @@ namespace translator
 		/// TODO: Add these two functions to the C api
 		json parse(std::string_view str);
 		std::string interpolate_parsed(json const& parsed);
+		std::string interpolate_parsed(json&& parsed);
 
 		std::string report_error(std::string_view error) const
 		{
@@ -90,7 +91,8 @@ namespace translator
 			}
 		}
 
-		json eval_arg(std::vector<json>& args, size_t n, json::value_t type = json::value_t::discarded);
+		/// NOTE: Will invalidate value in `args` (but return an evaluated version of it)
+		[[nodiscard]] json eval_arg(std::vector<json>& args, size_t n, json::value_t type = json::value_t::discarded);
 		void eval_args(std::vector<json>& args, size_t n);
 		void eval_args(std::vector<json>& args);
 
@@ -147,7 +149,7 @@ namespace translator
 			tree_type const& in_tree,
 			std::vector<json>::const_iterator name_it,
 			std::vector<json>::const_iterator names_end,
-			std::vector<defined_function const*>& found
+			std::set<defined_function const*>& found
 		) const;
 		std::vector<defined_function const*> find_local_functions(std::vector<json> const& arguments) const;
 

@@ -3,9 +3,10 @@
 
 #include <iostream>
 #include <sstream>
-
+#include <gtest/gtest.h>
 
 using namespace translator;
+using namespace std::string_view_literals;
 
 struct e_break : context::e_scope_terminator { virtual std::string type() const noexcept override { return "break"; } };
 struct e_continue : context::e_scope_terminator { virtual std::string type() const noexcept override { return "continue"; } };
@@ -20,7 +21,8 @@ static inline json if_then_else(context& e, std::vector<json> args)
 
 static inline json op_is(context& e, std::vector<json> args)
 {
-	e.eval_args(args, json::value_t::discarded, json::value_t::string);
+	e.eval_args(args, 2);
+	e.assert_arg(args, 1, json::value_t::string);
 	return args[0].type_name() == args[1];
 }
 
@@ -174,7 +176,8 @@ void open_core_lib(context& e)
 	e.bind_function("[] , [+]", op_cat);
 	e.bind_function("[] and [+]", op_and);
 	e.bind_function("[] or [+]", op_or);
-	e.bind_function("list [] , [+]", list);
+	e.bind_function("list [] , [*]", list);
+	e.bind_function("cat [] , [*] and []", op_cat);
 
 	/*	
 	add_prefix_variadic(e, list, "list");
@@ -184,45 +187,86 @@ void open_core_lib(context& e)
 	*/
 }
 
-int main()
-{
+
+struct translator_f : public testing::Test {
+	translator_f() {
+		open_core_lib(ctx);
+		ctx.unknown_var_value_getter() = [](context const&, std::string_view var) -> json {
+			throw var;
+			//return "<no var " + std::string{ var } + " found>";
+			};
+		ctx.unknown_func_handler() = [](context& c, std::vector<json> args) -> json {
+			return c.report_error("function for call '" + c.array_to_string(args) + "' not found");
+			};
+		ctx.error_handler() = [](context const&, std::string_view err) -> std::string {
+			throw err;
+			//return fmt::format("<error: {}>", err);
+		};
+	}
+
 	context ctx;
-	open_core_lib(ctx);
-	ctx.unknown_var_value_getter() = [](context const&, std::string_view var) -> json {
-		throw var;
-		//return "<no var " + std::string{ var } + " found>";
-	};
-	ctx.unknown_func_handler() = [](context& c, std::vector<json> args) -> json {
-		return c.report_error("function for call '" + c.array_to_string(args) + "' not found");
-	};
-	ctx.error_handler() = [](context const&, std::string_view err) -> std::string {
-		throw err;
-		//return fmt::format("<error: {}>", err);
-	};
+};
 
-	ctx.set_user_var("kills", 2);
-	print("{}\n", ctx.interpolate("Killed [.kills] [ [.kills == 1] ? monster. : monsters. ]"));
 
-	ctx.bind_function("a []", if_then_else);
-	ctx.bind_function("a [] b []", if_then_else);
-	ctx.bind_function("a [] b [] c []", if_then_else);
-
-	ctx.set_user_var("asd", { {"asd", "asd"} });
-	std::cout << ctx.interpolate("hello world [if false then 5 else 7]") << "\n";
-
-	ctx.interpolate("[.kills is number]");
-	
-	println("{}", ctx.interpolate("[5,6,7]"));
-	//println("{}", ctx.interpolate("[list 5]")); /// This will work only when we support * params
-	println("{}", ctx.interpolate("[list 5,6]"));
-	println("{}", ctx.interpolate("[list 5,6,7]"));
-
+TEST_F(translator_f, capi_works)
+{
 	auto cctx = translator_new_context();
 	translator_set_string_value(translator_user_var(cctx, "asd"), "booba");
-	
-	auto result = translator_interpolate_str(cctx, "hello world [.asd]");
-	std::cout << result << "\n";
-	free((void*)result);
 
-	return 0;
+	auto result = translator_interpolate_str(cctx, "hello world [.asd]");
+	EXPECT_EQ(result, "hello world booba"sv);
+	free((void*)result);
+}
+
+TEST_F(translator_f, variadic_arguments_work)
+{
+	//println("{}", ctx.interpolate("[list]"));
+
+	EXPECT_EQ("567", ctx.interpolate("[5,6,7]"));
+	EXPECT_EQ("[5]", ctx.interpolate("[list 5]"));
+	EXPECT_EQ("[5 6]", ctx.interpolate("[list 5,6]"));
+	EXPECT_EQ("[5 6 7]", ctx.interpolate("[list 5,6,7]"));
+	EXPECT_EQ("ad", ctx.interpolate("[cat a and d]"));
+	EXPECT_EQ("abcd", ctx.interpolate("[cat a, b, c and d]"));
+}
+
+TEST_F(translator_f, user_vars_work)
+{
+	ctx.set_user_var("kills", 2);
+	EXPECT_EQ("Killed 2 monsters.", ctx.interpolate("Killed [.kills] [ [.kills == 1] ? monster. : monsters. ]"));
+	ctx.set_user_var("kills", 1);
+	EXPECT_EQ("Killed 1 monster.", ctx.interpolate("Killed [.kills] [ [.kills == 1] ? monster. : monsters. ]"));
+}
+
+TEST_F(translator_f, preparse_works)
+{
+	auto parsed = ctx.parse("Killed [.kills] [ [.kills == 1] ? monster. : monsters. ]");
+	ctx.set_user_var("kills", 2);
+	EXPECT_EQ("Killed 2 monsters.", ctx.interpolate_parsed(parsed));
+	ctx.set_user_var("kills", 1);
+	EXPECT_EQ("Killed 1 monster.", ctx.interpolate_parsed(parsed));
+	ctx.set_user_var("kills", 20);
+	EXPECT_EQ("Killed 20 monsters.", ctx.interpolate_parsed(std::move(parsed)));
+}
+
+TEST_F(translator_f, unnamed_test_1)
+{
+	ctx.set_user_var("kills", 25);
+	EXPECT_EQ("true", ctx.interpolate("[.kills is number]"));
+}
+
+TEST_F(translator_f, can_bind_different_functions_with_same_prefix)
+{
+	auto a = ctx.bind_function("a []", if_then_else);
+	auto b = ctx.bind_function("a [] b []", if_then_else);
+	auto c = ctx.bind_function("a [] b [] c []", if_then_else);
+	EXPECT_NE(a, b);
+	EXPECT_NE(b, c);
+	EXPECT_NE(a, c);
+}
+
+int main(int argc, char** argv)
+{
+	::testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }
