@@ -87,10 +87,7 @@ namespace translator
 	context::context() noexcept
 		: context(nullptr)
 	{
-		options = {};
-		options.opening_delimiter = '[';
-		options.closing_delimiter = ']';
-		options.var_symbol = '.';
+		translator_init_context_options(this);
 	}
 
 	std::string context::consume_c_string(std::string_view& strv) const
@@ -152,7 +149,7 @@ namespace translator
 		/// Then, try everything else until space, closing brace or comma
 		const std::string_view result = consume_until(sexp_str, [=](auto ch) {
 			return translator::isspace(ch) ||
-				ch == ']' ||
+				ch == options.closing_delimiter ||
 				ch == ',';
 			});
 
@@ -199,19 +196,19 @@ namespace translator
 	{
 		nlohmann::json result = nlohmann::json::array();
 		trim_whitespace_left(sexp_str);
-		while (!sexp_str.empty() && !starts_with(sexp_str, ']'))
+		while (!sexp_str.empty() && !starts_with(sexp_str, options.closing_delimiter))
 		{
 			result.push_back(consume_value(sexp_str));
 			trim_whitespace_left(sexp_str);
 		}
-		consume(sexp_str, ']');
+		consume(sexp_str, options.closing_delimiter);
 		return result;
 	}
 
 	auto context::consume_value(std::string_view& sexp_str) const -> nlohmann::json
 	{
 		trim_whitespace_left(sexp_str);
-		if (consume(sexp_str, '['))
+		if (consume(sexp_str, options.opening_delimiter))
 			return consume_list(sexp_str);
 		return consume_atom(sexp_str);
 	}
@@ -229,11 +226,11 @@ namespace translator
 		std::string result;
 		while (!str.empty())
 		{
-			result += consume_until(str, '[');
+			result += consume_until(str, options.opening_delimiter);
 			if (str.empty()) break;
 			str.remove_prefix(1);
-			if (consume(str, '['))
-				result += '[';
+			if (consume(str, options.opening_delimiter))
+				result += options.opening_delimiter;
 			else
 			{
 				json call = consume_list(str);
@@ -250,11 +247,11 @@ namespace translator
 		std::string latest_str;
 		while (!str.empty())
 		{
-			latest_str += consume_until(str, '[');
+			latest_str += consume_until(str, options.opening_delimiter);
 			if (str.empty()) break;
 			str.remove_prefix(1);
-			if (consume(str, '['))
-				latest_str += '[';
+			if (consume(str, options.opening_delimiter))
+				latest_str += options.opening_delimiter;
 			else
 			{
 				if (!latest_str.empty())
@@ -387,7 +384,7 @@ namespace translator
 
 	std::string context::array_to_string(std::vector<json> const& arguments) const
 	{
-		return format("[{}]", join(arguments, " ", [this](json const& v) { return value_to_string(v); }));
+		return format("{}{}{}", options.opening_delimiter, join(arguments, " ", [this](json const& v) { return value_to_string(v); }), options.closing_delimiter);
 	}
 
 	void context::assert_args(std::vector<json> const& args, size_t arg_count) const

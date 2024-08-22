@@ -10,6 +10,15 @@ translator_context* translator_new_context()
 	return new cpp_context{};
 }
 
+void translator_init_context_options(translator_context* context)
+{
+	assert(context);
+	context->options = {};
+	context->options.opening_delimiter = '[';
+	context->options.closing_delimiter = ']';
+	context->options.var_symbol = '.';
+}
+
 #define self ((cpp_context*)context)
 
 void translator_delete_context(translator_context* context)

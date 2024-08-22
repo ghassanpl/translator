@@ -26,10 +26,11 @@ namespace translator
 		/// - optional
 		/// - eval/noeval - if we make `bind_function` and `bind_macro` separate... :)
 
+		const auto copy = signature_spec;
 		auto param_array = consume_list(signature_spec);
 		if (!signature_spec.empty())
 		{
-			report_error(format("invalid function signature at point: {}", signature_spec));
+			report_error(format("invalid function signature at point: {} (signature: {})", signature_spec, copy));
 			return {};
 		}
 
@@ -73,7 +74,11 @@ namespace translator
 		auto* tree = infix ? &m_infix_function_tree : &m_prefix_function_tree;
 		func_tree_element const* last_func_element = nullptr;
 		std::string signature;
-		if (infix) signature += "[]";
+		if (infix) {
+			//signature += "[]";
+			signature += options.opening_delimiter;
+			signature += options.closing_delimiter;
+		}
 
 		for (size_t i = infix; i < elem_count; i += 2)
 		{
@@ -82,9 +87,10 @@ namespace translator
 
 			if (i != 0) signature += ' ';
 			signature += prefix;
-			signature += " [";
+			signature += ' ';
+			signature += options.opening_delimiter;
 			signature += join(param_decl, ' ', [](json const& wut) -> std::string { return wut; });
-			signature += ']';
+			signature += options.closing_delimiter;
 
 			func_tree_element el;
 			el.name = std::move(prefix.get_ref<json::string_t&>());

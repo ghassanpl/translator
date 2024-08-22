@@ -11,10 +11,9 @@ struct translator_context
 	struct translator_context* parent_context;
 	void* user_data;
 
-	/// TODO: Respect these
 	struct
 	{
-		bool parse_escapes;
+		bool parse_escapes; /// TODO: Respect this option
 		char opening_delimiter;
 		char closing_delimiter;
 		char var_symbol;
@@ -25,6 +24,7 @@ struct translator_context
 typedef struct translator_context translator_context;
 
 translator_context* translator_new_context();
+void translator_init_context_options(translator_context* context);
 void translator_delete_context(translator_context* context);
 
 typedef struct value_t* value;

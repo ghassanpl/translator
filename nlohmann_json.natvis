@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="nlohmann::json_abi::basic_json&lt;*&gt;">
+		<DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::string">{*(m_data.m_value.string)}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::null">null</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::object">{*(m_data.m_value.object)}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::array">{*(m_data.m_value.array)}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::boolean">{m_data.m_value.boolean}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::number_integer">{m_data.m_value.number_integer}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::number_unsigned">{m_data.m_value.number_unsigned}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::number_float">{m_data.m_value.number_float}</DisplayString>
+        <DisplayString Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::discarded">discarded</DisplayString>
+        <Expand>
+            <ExpandedItem Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::array">
+				m_data.m_value.array,view(simple)
+			</ExpandedItem>
+			<ExpandedItem Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::string">
+				m_data.m_value.string,view(simple)
+			</ExpandedItem>
+			<ExpandedItem Condition="m_data.m_type == nlohmann::json_abi::detail::value_t::object">
+				m_data.m_value.object,view(simple)
+			</ExpandedItem>
+        </Expand>
+    </Type>
+
+    <Type Name="std::pair&lt;*, nlohmann::json_abi::basic_json&lt;*&gt;&gt;" IncludeView="MapHelper">
+        <DisplayString>{second}</DisplayString>
+        <Expand>
+            <ExpandedItem>second</ExpandedItem>
+        </Expand>
+    </Type>
+</AutoVisualizer>
