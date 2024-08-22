@@ -28,7 +28,7 @@ namespace translator
 
 		const auto copy = signature_spec;
 		auto param_array = consume_list(signature_spec);
-		if (!signature_spec.empty())
+		if (!signature_spec.empty() || param_array.empty())
 		{
 			report_error(format("invalid function signature at point: {} (signature: {})", signature_spec, copy));
 			return {};
@@ -186,7 +186,7 @@ namespace translator
 		std::vector<defined_function const*>& found
 	) const
 	{
-		std::vector<tree_type::const_iterator> candidates;
+		std::vector<std::pair<std::vector<json>::const_iterator, tree_type::const_iterator>> candidates;
 
 		auto [begin, end] = in_tree.equal_range(std::string_view{ *name_it });
 		for (auto element = begin; element != end && name_it != names_end; ++element)
@@ -197,7 +197,7 @@ namespace translator
 				while ((name += 2) != names_end && *name == element->name)
 					;
 
-				candidates.push_back(element);
+				candidates.push_back({ name, element });
 			}
 			else if (element->modifier == '?')
 			{
@@ -209,24 +209,16 @@ namespace translator
 			}
 			else
 			{
-				candidates.push_back(element);
+				candidates.push_back({ name + 2, element });
 			}
 		}
 
-		name_it += 2;
-
-		if (name_it == names_end)
+		for (auto const& candidate : candidates)
 		{
-			for (auto const& candidate : candidates)
-			{
-				if (candidate->leaf)
-					found.push_back(candidate->leaf);
-			}
-		}
-		else
-		{
-			for (auto const& candidate : candidates)
-				find_local_functions(candidate->child_elements, name_it, names_end, found);
+			if (candidate.first == names_end && candidate.second->leaf)
+				found.push_back(candidate.second->leaf);
+			else if (candidate.first != names_end)
+				find_local_functions(candidate.second->child_elements, candidate.first, names_end, found);
 		}
 	}
 

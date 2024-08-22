@@ -13,6 +13,13 @@ struct translator_context
 
 	struct
 	{
+		/// TODO: Should we make 'true', 'false' and 'null' user-defined literals?
+		/// Or we could have just a map from atom to `value_ref` 
+		/// E.g.:
+		///		struct literal_mapping { const char* atom; value_ref val; } *literal_mappings;
+		/// 
+		/// if (!literal_mapping) literal_mapping = {{"true", &json_true},{"false", &json_false},{"null", &json_null}};
+		
 		bool parse_escapes; /// TODO: Respect this option
 		char opening_delimiter;
 		char closing_delimiter;

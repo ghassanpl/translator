@@ -131,7 +131,7 @@ namespace translator
 
 		struct call_stack_element
 		{
-			defined_function const* actual_function;
+			defined_function const* actual_function = nullptr;
 			std::string debug_call_sig;
 		};
 		std::vector<call_stack_element> m_call_stack;

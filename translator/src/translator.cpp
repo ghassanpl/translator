@@ -153,6 +153,7 @@ namespace translator
 				ch == ',';
 			});
 
+		/// TODO: We could have just a map from atom to `value` in `options`
 		if (result == "true") return true;
 		if (result == "false") return false;
 		if (result == "null") return nullptr;

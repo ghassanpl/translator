@@ -111,7 +111,7 @@ static inline json str(context& e, std::vector<json> args)
 static inline json eval(context& e, std::vector<json> args)
 {
 	json last = nullptr;
-	for (size_t i = 1; i < args.size(); ++i)
+	for (size_t i = 0; i < args.size(); ++i)
 		last = e.eval(std::move(args[i]));
 	return last;
 }
@@ -121,7 +121,7 @@ static inline json list(context& e, std::vector<json> args)
 {
 	e.eval_args(args);
 	std::vector<json> result;
-	for (size_t i = 1; i < args.size(); ++i)
+	for (size_t i = 0; i < args.size(); ++i)
 		result.push_back(std::move(args[i]));
 	return result;
 }
@@ -131,7 +131,7 @@ static inline json op_cat(context& e, std::vector<json> args)
 {
 	e.eval_args(args);
 	std::string result;
-	for (size_t i = 1; i < args.size(); ++i)
+	for (size_t i = 0; i < args.size(); ++i)
 		result += e.value_to_string(args[i]);
 	return result;
 }
@@ -174,6 +174,7 @@ void open_core_lib(context& e)
 	e.bind_function("[] , [+]", op_cat);
 	e.bind_function("[] and [+]", op_and);
 	e.bind_function("[] or [+]", op_or);
+	e.bind_function("list [] , [+]", list);
 
 	/*	
 	add_prefix_variadic(e, list, "list");
@@ -210,6 +211,11 @@ int main()
 	std::cout << ctx.interpolate("hello world [if false then 5 else 7]") << "\n";
 
 	ctx.interpolate("[.kills is number]");
+	
+	println("{}", ctx.interpolate("[5,6,7]"));
+	//println("{}", ctx.interpolate("[list 5]")); /// This will work only when we support * params
+	println("{}", ctx.interpolate("[list 5,6]"));
+	println("{}", ctx.interpolate("[list 5,6,7]"));
 
 	auto cctx = translator_new_context();
 	translator_set_string_value(translator_user_var(cctx, "asd"), "booba");
