@@ -1,12 +1,8 @@
 #include "../include/ghassanpl/translator/translator.hpp"
-
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
+#include "format.h"
 
 namespace translator
 {
-	using fmt::format;
-
 	defined_function const* context::get_unknown_func_handler() const noexcept
 	{
 		if (m_unknown_func_handler.func)

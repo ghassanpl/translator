@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 #include <functional>
+/// TODO: No reason not to switch to boost::json (much faster) or even a fully custom JSON lib
 #include <nlohmann/json.hpp>
 #include <array>
 #include <sstream>

@@ -1,14 +1,11 @@
 #include "../include/ghassanpl/translator/translator.hpp"
-#include<string.h>
+#include "format.h"
+#include <string.h>
 #include <charconv>
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 namespace translator
 {
-	using fmt::format;
-
 	constexpr bool ismodifier(char cp) noexcept 
 	{ 
 		return cp == '?' || cp == '*' || cp == '+';
@@ -153,7 +150,7 @@ namespace translator
 			return nlohmann::json(",");
 
 		/// Then, try everything else until space, closing brace or comma
-		std::string_view result = consume_until(sexp_str, [=](auto ch) {
+		const std::string_view result = consume_until(sexp_str, [=](auto ch) {
 			return translator::isspace(ch) ||
 				ch == ']' ||
 				ch == ',';
@@ -247,6 +244,46 @@ namespace translator
 		return result;
 	}
 
+	json context::parse(std::string_view str)
+	{
+		json result = json::array();
+		std::string latest_str;
+		while (!str.empty())
+		{
+			latest_str += consume_until(str, '[');
+			if (str.empty()) break;
+			str.remove_prefix(1);
+			if (consume(str, '['))
+				latest_str += '[';
+			else
+			{
+				if (!latest_str.empty())
+					result.push_back(std::exchange(latest_str, {}));
+				result.push_back(std::move(consume_list(str)));
+			}
+		}
+		if (!latest_str.empty())
+			result.push_back(std::move(latest_str));
+		return result;
+	}
+
+	std::string context::interpolate_parsed(json const& parsed)
+	{
+		std::string result;
+		if (!parsed.is_array())
+			return report_error("Invalid parsed value: must be an array of strings or call arrays");
+		for (auto& r : parsed)
+		{
+			if (r.is_array())
+				safe_eval(r);
+			else if (r.is_string())
+				result += r.get_ref<json::string_t const&>();
+			else
+				return report_error("Invalid parsed value: must be an array of strings or call arrays");
+		}
+		return result;
+	}
+
 	json context::user_var(std::string_view name)
 	{
 		auto [owning_context, iterator] = find_variable(name);
@@ -278,7 +315,7 @@ namespace translator
 		const auto elem_count = args.size();
 		const bool infix = (elem_count % 2) == 1;
 
-		if (args.size() == 1 && args[0].is_string() && !args[0].empty() && std::string_view{ args[0] } [0] == '.')
+		if (args.size() == 1 && args[0].is_string() && !args[0].empty() && std::string_view{ args[0] } [0] == options.var_symbol)
 			return user_var(std::string_view{ args[0] }.substr(1));
 
 		auto function_candidates = this->find_functions(args);
@@ -294,13 +331,13 @@ namespace translator
 				if (signatures.empty())
 					return report_error(format("function for call '{}' not found", array_to_string(args)));
 				else
-					return report_error(format("function for call '{}' not found, did you mean:\n{}?", array_to_string(args), fmt::join(signatures, "?\n")));
+					return report_error(format("function for call '{}' not found, did you mean:\n{}?", array_to_string(args), join(signatures, "?\n")));
 			}
 		}
 		else if (function_candidates.size() > 1)
 		{
 			std::vector<std::string> signatures; /// = function_candidates | transform(to_signature)
-			return report_error(format("multiple functions for call '{}' found:", array_to_string(args), fmt::join(signatures, "\n")));
+			return report_error(format("multiple functions for call '{}' found:", array_to_string(args), join(signatures, "\n")));
 		}
 
 		std::string call_frame_desc;
@@ -309,23 +346,14 @@ namespace translator
 
 		std::vector<json> arguments;
 		arguments.reserve(elem_count / 2 + infix);
-		if (elem_count == 1)
-		{
-			if (args[0].is_string() && starts_with(args[0], '.'))
-				return user_var(std::string_view{ args[0] }.substr(1));
-		}
-		else
-		{
-			if (infix)
-			{
-				arguments.push_back(std::move(args[0]));
-			}
 
-			/// TODO: Go through the function signature and if we find a variadic parameter, make an array and swallow the arguments
-			for (size_t i = infix; i < elem_count; i += 2)
-				arguments.push_back(std::move(args[i + 1]));
-		}
+		if (infix)
+			arguments.push_back(std::move(args[0]));
 
+		/// TODO: Go through the function signature and if we find a variadic parameter, make an array and swallow the arguments
+		for (size_t i = infix; i < elem_count; i += 2)
+			arguments.push_back(std::move(args[i + 1]));
+	
 		assert(function_candidates[0]);
 		return call(function_candidates[0], std::move(arguments), std::move(call_frame_desc));
 	}

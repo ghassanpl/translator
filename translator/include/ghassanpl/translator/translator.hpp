@@ -20,6 +20,10 @@ namespace translator
 		context const* get_root_context() const noexcept { return parent() ? parent()->get_root_context() : this; }
 
 		std::string interpolate(std::string_view str);
+		
+		/// TODO: Add these two functions to the C api
+		json parse(std::string_view str);
+		std::string interpolate_parsed(json const& parsed);
 
 		std::string report_error(std::string_view error) const
 		{

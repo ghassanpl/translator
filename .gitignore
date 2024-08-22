@@ -1,1 +1,3 @@
 translator/build/
+*.idb
+/translator_tests/build/

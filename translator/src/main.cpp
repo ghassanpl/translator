@@ -1,10 +1,9 @@
 #include "../include/ghassanpl/translator/translator.h"
+#include "../src/format.h"
 
 #include <iostream>
 #include <sstream>
 
-#define FMT_HEADER_ONLY
-#include <fmt/format.h>
 
 using namespace translator;
 
@@ -91,11 +90,11 @@ static inline json op_mul(context& e, std::vector<json> args) { e.eval_args(args
 static inline json op_div(context& e, std::vector<json> args) { e.eval_args(args, 2);   IMPL_OPF(args[0], /, args[1]); }
 static inline json op_mod(context& e, std::vector<json> args) { e.eval_args(args, 2);   IMPL_OPI(args[0], %, args[1]); }
 
-
 static inline json type_of(context& e, std::vector<json> args) {
 	const auto val = e.eval_arg(args, 0);
 	return val.type_name();
 }
+
 static inline json size_of(context& e, std::vector<json> args) {
 	const auto val = e.eval_arg(args, 0);
 	const json& j = val;
@@ -137,62 +136,6 @@ static inline json op_cat(context& e, std::vector<json> args)
 	return result;
 }
 
-/*
-void add_prefix_variadic(context& e, translator::context::eval_func const& func, std::string const& name, size_t min_args = 0)
-{
-	switch (min_args)
-	{
-	case 0:
-		e.functions[name] = func;
-	case 1:
-		e.functions[name + ":"] = func;
-	case 2:
-		e.functions[name + ":,:"] = func;
-		e.functions[name + ":,*:"] = func;
-		break;
-	}
-}
-
-void add_infix_variadic(context& e, translator::context::eval_func const& func, std::string const& name)
-{
-	e.functions[':' + name + ':'] = func;
-	e.functions[':' + name + "*:"] = func;
-}
-
-/// TODO: Instead of building a string name for every call (slow) we could just use the arguments list (every other value)
-///		to search through a trie-like container that stores these functions
-
-template <typename... NAMES_RANGE>
-void add_infix(context& e, translator::context::eval_func const& func, NAMES_RANGE&&... name_parts)
-{
-	static_assert(sizeof...(name_parts) > 0);
-	std::string name{ ':' };
-	((name += name_parts, name += ':'), ...);
-	e.functions[name] = func;
-}
-
-/// TODO: Instead of building a string name for every call (slow) we could just use the arguments list (every other value)
-///		to search through a trie-like container that stores these functions
-
-template <typename... NAMES_RANGE>
-void add_prefix(context& e, translator::context::eval_func const& func, NAMES_RANGE&&... name_parts)
-{
-	static_assert(sizeof...(name_parts) > 0);
-	std::string name;
-	((name += name_parts, name += ':'), ...);
-	e.functions[name] = func;
-}
-*/
-
-
-namespace translator
-{
-}
-
-
-/// TODO: Instead of building a string name for every call (slow) we could just use the arguments list (every other value)
-///		to search through a trie-like container that stores these functions
-
 void open_core_lib(context& e)
 {
 	/// TODO: [pred .kills with [one? 'bla'], [zero? 'bleh'], [many? 'bluh']]
@@ -229,13 +172,12 @@ void open_core_lib(context& e)
 	e.bind_function("str []", str);
 
 	e.bind_function("[] , [+]", op_cat);
+	e.bind_function("[] and [+]", op_and);
+	e.bind_function("[] or [+]", op_or);
 
 	/*	
 	add_prefix_variadic(e, list, "list");
 	add_prefix_variadic(e, eval, "eval");
-
-	add_infix_variadic(e, op_and, "and");
-	add_infix_variadic(e, op_or, "or");
 
 	add_infix_variadic(e, op_cat, ",");
 	*/
@@ -258,7 +200,7 @@ int main()
 	};
 
 	ctx.set_user_var("kills", 2);
-	fmt::print("{}\n", ctx.interpolate("Killed [.kills] [ [.kills == 1] ? monster. : monsters. ]"));
+	print("{}\n", ctx.interpolate("Killed [.kills] [ [.kills == 1] ? monster. : monsters. ]"));
 
 	ctx.bind_function("a []", if_then_else);
 	ctx.bind_function("a [] b []", if_then_else);
