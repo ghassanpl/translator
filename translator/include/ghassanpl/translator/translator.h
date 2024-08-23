@@ -1,7 +1,6 @@
 #pragma once
 
+#include "translator_capi.h"
 #ifdef __cplusplus
 #include "translator.hpp"
-#else
-#include "translator_capi.h"
 #endif

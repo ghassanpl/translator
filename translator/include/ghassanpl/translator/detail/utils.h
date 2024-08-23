@@ -93,10 +93,6 @@ namespace translator
 		}
 	}
 
-	struct context;
-	using eval_func = std::function<json(context&, std::vector<json>)>;
-
-
 	/// Returns a string that is created by joining together string representation of the elements in the `source` range, separated by `delim`; `delim` is only added between elements.
 	template <typename T, typename DELIM>
 	auto join(T&& source, DELIM const& delim)

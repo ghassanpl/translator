@@ -5,13 +5,14 @@
 
 namespace translator
 {
+	struct context;
 	struct func_tree_element;
 	using tree_type = std::set<func_tree_element, std::less<>>;
 
 	struct defined_function
 	{
 		std::string signature;
-		eval_func func;
+		std::function<json(context&, std::vector<json>)> func;
 		func_tree_element const* element = nullptr;
 	};
 

@@ -1,6 +1,8 @@
 #pragma once
 
 #ifdef __cplusplus
+inline namespace translator
+{
 extern "C" {
 #else
 typedef char bool;
@@ -37,13 +39,13 @@ void translator_delete_context(translator_context* context);
 typedef struct value_t* value;
 typedef struct value_ref_t* value_ref;
 
-/// TODO: Retrieving the three following three callbacks
+/// TODO: Retrieving the three following callbacks
 
 typedef value(*translator_eval_func)(translator_context* context, value_ref* arguments, int num_arguments, void* user_data);
 void translator_set_unknown_func_eval(translator_context* context, translator_eval_func func, void* user_data);
 
-typedef value(*unknown_var_eval_func)(translator_context* context, const char* var_name, void* user_data);
-void translator_set_unknown_var_eval(translator_context* context, unknown_var_eval_func func, void* user_data);
+typedef value(*var_value_getter_func)(translator_context* context, const char* var_name, void* user_data);
+void translator_set_unknown_var_value_getter(translator_context* context, var_value_getter_func func, void* user_data);
 
 typedef value(*error_handler_func)(translator_context const* context, const char* error_desc, void* user_data);
 void translator_set_error_handler(translator_context* context, error_handler_func func, void* user_data);
@@ -128,5 +130,6 @@ double translator_value_get_double(value_ref v);
 void translator_delete_value(value v);
 
 #ifdef __cplusplus
+}
 }
 #endif

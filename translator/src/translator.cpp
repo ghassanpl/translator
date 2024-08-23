@@ -308,6 +308,13 @@ namespace translator
 		return result;
 	}
 
+	std::string context::report_error(std::string_view error) const
+	{
+		if (m_error_handler)
+			return m_error_handler(*this, error);
+		throw std::runtime_error(std::string{ error });
+	}
+
 	json context::user_var(std::string_view name)
 	{
 		auto [owning_context, iterator] = find_variable(name);
@@ -329,6 +336,14 @@ namespace translator
 		if (it == storage->end())
 			return storage->emplace(name, std::move(val)).first->second;
 		return it->second = std::move(val);
+	}
+
+	json const& context::user_var(std::string_view name, json const& val_if_not_found)
+	{
+		auto [owning_context, iterator] = find_variable(name);
+		if (owning_context)
+			return iterator->second;
+		return val_if_not_found;
 	}
 
 	json context::eval_list(std::vector<json> args)
@@ -368,15 +383,18 @@ namespace translator
 		if (options.maintain_call_stack && options.call_stack_store_call_string)
 			call_frame_desc = array_to_string(args);
 
+		std::vector<json const*> parameter_names;
 		std::vector<json> arguments;
 		arguments.reserve(elem_count / 2 + infix);
 
 		if (infix)
 			arguments.push_back(std::move(args[0]));
 
-		/// TODO: Go through the function signature and if we find a variadic parameter, make an array and swallow the arguments
 		for (size_t i = infix; i < elem_count; i += 2)
+		{
+			parameter_names.push_back(&args[i]);
 			arguments.push_back(std::move(args[i + 1]));
+		}
 	
 		assert(function_candidates[0]);
 		return call(function_candidates[0], std::move(arguments), std::move(call_frame_desc));
@@ -390,11 +408,23 @@ namespace translator
 		if (options.maintain_call_stack)
 		{
 			auto& call_frame = m_call_stack.emplace_back();
+			call_frame.actual_function = func;
 			if (options.call_stack_store_call_string)
 				call_frame.debug_call_sig = std::move(call_frame_desc);
 		}
 
-		auto result = func->func(*this, std::move(arguments));
+		/// TODO: This
+		//auto prev_parameter_names = std::exchange(m_parameter_names, &parameters);
+		json result;
+		try
+		{
+			result = func->func(*this, std::move(arguments));
+		}
+		catch (...)
+		{
+			//m_parameter_names = prev_parameter_names;
+			throw;
+		}
 
 		if (options.maintain_call_stack)
 			m_call_stack.pop_back();
@@ -437,31 +467,51 @@ namespace translator
 		if (arg_num >= args.size())
 			throw std::runtime_error{ report_error(format("function {} requires {} arguments, {} given", array_to_string(args), arg_num, args.size())) };
 
-		if (type != json::value_t::discarded && args[arg_num].type() != type)
+		return assert_arg(args[arg_num], args, arg_num, type);
+	}
+
+	json::value_t context::assert_arg(json const& value, std::vector<json> const& args, size_t arg_num, json::value_t type) const
+	{
+		if (type != json::value_t::discarded && value.type() != type)
 		{
+			if (options.maintain_call_stack)
+			{
+				auto& entry = m_call_stack.back();
+
+				throw std::runtime_error{ report_error(format("argument #{} to function {} must be of type {}, {} given",
+					arg_num, entry.actual_function->signature, json(type).type_name(), value.type_name())) };
+			}
 			throw std::runtime_error{ report_error(format("argument #{} to function {} must be of type {}, {} given",
-				arg_num, array_to_string(args), json(type).type_name(), args[arg_num].type_name())) };
+				arg_num, array_to_string(args), json(type).type_name(), value.type_name())) };
 		}
-
-		return args[arg_num].type();
+		return value.type();
 	}
 
-	json context::eval_arg_steal(std::vector<json>& args, size_t n, json::value_t type)
+	json context::eval_arg_steal(std::vector<json>& args, size_t arg_num, json::value_t type)
 	{
-		assert_arg(args, n, type);
-		return eval(std::move(args[n]));
+		if (arg_num >= args.size())
+			throw std::runtime_error{ report_error(format("function {} requires {} arguments, {} given", array_to_string(args), arg_num, args.size())) };
+
+		auto result = eval(std::move(args[arg_num]));
+		assert_arg(result, args, arg_num, type);
+		return result;
 	}
 
-	json context::eval_arg_copy(std::vector<json>& args, size_t n, json::value_t type)
+	json context::eval_arg_copy(std::vector<json> const& args, size_t arg_num, json::value_t type)
 	{
-		assert_arg(args, n, type);
-		return eval(args[n]);
+		if (arg_num >= args.size())
+			throw std::runtime_error{ report_error(format("function {} requires {} arguments, {} given", array_to_string(args), arg_num, args.size())) };
+
+		auto result = eval(args[arg_num]);
+		assert_arg(result, args, arg_num, type);
+		return result;
 	}
 
-	json& context::eval_arg_in_place(std::vector<json>& args, size_t n, json::value_t type)
+	json& context::eval_arg_in_place(std::vector<json>& args, size_t arg_num, json::value_t type)
 	{
-		assert_arg(args, n, type);
-		return args[n] = eval(std::move(args[n]));
+		args[arg_num] = eval(std::move(args[arg_num]));
+		assert_arg(args, arg_num, type);
+		return args[arg_num];
 	}
 
 	void context::eval_args(std::vector<json>& args, size_t n)

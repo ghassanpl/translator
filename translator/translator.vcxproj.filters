@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\detail">
+      <UniqueIdentifier>{55c85e46-ba27-4218-b06f-dd36ea5189b6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\translator.cpp">
@@ -35,17 +38,20 @@
     <ClInclude Include="include\ghassanpl\translator\translator_capi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\ghassanpl\translator\detail\utils.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ghassanpl\translator\detail\functions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\format.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ghassanpl\translator\detail\functions.h">
+      <Filter>Header Files\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ghassanpl\translator\detail\utils.h">
+      <Filter>Header Files\detail</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\README.md" />
   </ItemGroup>
 </Project>

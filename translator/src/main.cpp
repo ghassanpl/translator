@@ -179,12 +179,23 @@ void open_core_lib(context& e)
 	e.bind_function("list [] , [*]", list);
 	e.bind_function("cat [] , [*] and []", op_cat);
 
-	/*	
-	add_prefix_variadic(e, list, "list");
-	add_prefix_variadic(e, eval, "eval");
-
-	add_infix_variadic(e, op_cat, ",");
-	*/
+	/// TODO: 'default' should be optional
+	///ctx.bind_function("match [] with [+] default [?]", [](context& e, std::vector<json> args) -> json {
+	e.bind_function("match [] with [*] default []", [](context& e, std::vector<json> args) -> json {
+		e.assert_min_args(args, 2);
+		auto val = e.eval_arg_steal(args, 0);
+		for (size_t i = 1; i < args.size() - 1; i++)
+		{
+			e.assert_arg(args, i, json::value_t::array);
+			auto& match_case = args[i];
+			if (match_case.size() < 2)
+				return e.report_error(format("case #{} in match must have at least 2 arguments", i));
+			auto case_val = e.eval(move(match_case[0]));
+			if (val == case_val)
+				return e.eval(move(match_case[1]));
+		}
+		return e.eval_arg_steal(args, args.size() - 1);
+	});
 }
 
 
@@ -197,7 +208,7 @@ struct translator_f : public testing::Test {
 			};
 		ctx.unknown_func_handler() = [](context& c, std::vector<json> args) -> json {
 			return c.report_error("function for call '" + c.array_to_string(args) + "' not found");
-			};
+		};
 		ctx.error_handler() = [](context const&, std::string_view err) -> std::string {
 			throw err;
 			//return fmt::format("<error: {}>", err);
@@ -228,6 +239,23 @@ TEST_F(translator_f, variadic_arguments_work)
 	EXPECT_EQ("[5 6 7]", ctx.interpolate("[list 5,6,7]"));
 	EXPECT_EQ("ad", ctx.interpolate("[cat a and d]"));
 	EXPECT_EQ("abcd", ctx.interpolate("[cat a, b, c and d]"));
+}
+
+TEST_F(translator_f, variadic_functions_are_sanely_searched)
+{
+	ctx.error_handler() = [&](context const&, std::string_view err) -> std::string {
+		throw std::runtime_error(std::string{ err });
+	};
+
+	int called_once = 0;
+	ctx.bind_function("[] meh [*]", [&](context& e, std::vector<json> args)->json {
+		called_once <<= 1;
+		called_once |= 1;
+		return nullptr;
+	});
+	ctx.interpolate("[0 meh 1]");
+	EXPECT_THROW(ctx.interpolate("[5]"), std::runtime_error);
+	EXPECT_EQ(called_once, 1) << "Infix function with optional last arg incorrectly called for single-element call";
 }
 
 TEST_F(translator_f, user_vars_work)
@@ -263,6 +291,43 @@ TEST_F(translator_f, can_bind_different_functions_with_same_prefix)
 	EXPECT_NE(a, b);
 	EXPECT_NE(b, c);
 	EXPECT_NE(a, c);
+}
+
+TEST_F(translator_f, fluent_features_lol)
+{
+	constexpr auto str = 
+	R"([.userName] [.photoCount 
+		1? "added a new photo" 
+		else ["added ", .photoCount, " new photos"]
+	] to [
+		match .userGender
+		with [male "his stream"]
+		with [female "her stream"]
+		default "their stream"
+	].)";
+	ctx.options.maintain_call_stack = true;
+	ctx.bind_function("[] 1? [] else []", [](context& e, std::vector<json> args) -> json {
+		int num = e.eval_arg_steal(args, 0, json::value_t::number_integer);
+		if (num == 1)
+			return e.eval_arg_steal(args, 1);
+		return e.eval_arg_steal(args, 2);
+	});
+	ctx.error_handler() = [&](context const&, std::string_view err) -> std::string {
+		EXPECT_FALSE(true) << err;
+		return std::string{ err };
+	};
+	ctx.set_user_var("userName", "Ghassan");
+	ctx.set_user_var("photoCount", 1);
+	ctx.set_user_var("userGender", "female");
+	EXPECT_EQ("Ghassan added a new photo to her stream.", ctx.interpolate(str));
+	ctx.set_user_var("userName", "Steve");
+	ctx.set_user_var("photoCount", 3);
+	ctx.set_user_var("userGender", "male");
+	EXPECT_EQ("Steve added 3 new photos to his stream.", ctx.interpolate(str));
+	ctx.set_user_var("userName", "Xen");
+	ctx.set_user_var("photoCount", 0);
+	ctx.set_user_var("userGender", "non-binary");
+	EXPECT_EQ("Xen added 0 new photos to their stream.", ctx.interpolate(str));
 }
 
 void open_repl_lib(context& c)

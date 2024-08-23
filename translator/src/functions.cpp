@@ -116,8 +116,6 @@ namespace translator
 
 				if (i == 0 && el.modifier != '+')
 				{
-					/// TODO: Technically we COULD generate a `name` and `name:` overload for sig `name [?]`
-					///		but then we'd have the same function bound with multiple signatures...
 					report_error(format("first function parameter cannot be optional", value_to_string(modifier)));
 					return {};
 				}
