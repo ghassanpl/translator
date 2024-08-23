@@ -14,9 +14,9 @@ struct e_continue : context::e_scope_terminator { virtual std::string type() con
 static inline json if_then_else(context& e, std::vector<json> args)
 {
 	e.assert_args(args, 3);
-	if (is_true(e.eval_arg(args, 0)))
-		return e.eval_arg(args, 1);
-	return e.eval_arg(args, 2);
+	if (is_true(e.eval_arg_steal(args, 0)))
+		return e.eval_arg_steal(args, 1);
+	return e.eval_arg_steal(args, 2);
 }
 
 static inline json op_is(context& e, std::vector<json> args)
@@ -42,7 +42,7 @@ static inline json op_and(context& e, std::vector<json> args) {
 	json left;
 	for (size_t i = 0; i < args.size(); ++i)
 	{
-		left = e.eval_arg(args, i);
+		left = e.eval_arg_steal(args, i);
 		if (!is_true(left))
 			return left;
 	}
@@ -53,7 +53,7 @@ static inline json op_or(context& e, std::vector<json> args) {
 	json left;
 	for (size_t i = 0; i < args.size(); ++i)
 	{
-		left = e.eval_arg(args, i);
+		left = e.eval_arg_steal(args, i);
 		if (is_true(left))
 			return left;
 	}
@@ -93,19 +93,19 @@ static inline json op_div(context& e, std::vector<json> args) { e.eval_args(args
 static inline json op_mod(context& e, std::vector<json> args) { e.eval_args(args, 2);   IMPL_OPI(args[0], %, args[1]); }
 
 static inline json type_of(context& e, std::vector<json> args) {
-	const auto val = e.eval_arg(args, 0);
+	const auto val = e.eval_arg_steal(args, 0);
 	return val.type_name();
 }
 
 static inline json size_of(context& e, std::vector<json> args) {
-	const auto val = e.eval_arg(args, 0);
+	const auto val = e.eval_arg_steal(args, 0);
 	const json& j = val;
 	return j.is_string() ? j.get_ref<json::string_t const&>().size() : j.size();
 }
 
 static inline json str(context& e, std::vector<json> args)
 {
-	auto arg = e.eval_arg(args, 0);
+	auto arg = e.eval_arg_steal(args, 0);
 	return e.value_to_string(arg);
 }
 
@@ -265,8 +265,63 @@ TEST_F(translator_f, can_bind_different_functions_with_same_prefix)
 	EXPECT_NE(a, c);
 }
 
+void open_repl_lib(context& c)
+{
+	c.bind_function("[] = []", [](context& e, std::vector<json> args) -> json {
+		e.assert_args(args, json::value_t::string, json::value_t::discarded);
+		return format("{} => {}", e.value_to_string(args[0]), e.value_to_string(e.set_user_var(args[0], e.eval_arg_steal(args, 1))));
+	});
+	c.bind_function("imode", [](context& e, std::vector<json> args) -> json {
+		return e.set_user_var("$mode", false);
+	});
+	c.bind_function("emode", [](context& e, std::vector<json> args) -> json {
+		return e.set_user_var("$mode", true);
+	});
+	c.set_user_var("$mode", true);
+}
+
+void repl()
+{
+	translator::context ctx;
+	open_core_lib(ctx);
+	open_repl_lib(ctx);
+	ctx.unknown_var_value_getter() = [](context const& ctx, std::string_view var) -> json {
+		return ctx.report_error(format("variable '{}' not found", var));
+	};
+	ctx.error_handler() = [](context const&, std::string_view err) -> std::string {
+		throw std::runtime_error(std::string{ err });
+	};
+	std::string in;
+	bool exec_mode = false;
+	while (print("{}> ", (exec_mode = is_true(ctx.user_var("$mode"))) ? "E" : "I"), std::getline(std::cin, in))
+	{
+		if (in == "exit")
+			break;
+		try
+		{
+			if (exec_mode)
+			{
+				std::string_view insv = in;
+				json call = ctx.consume_list(insv);
+				json call_result = ctx.safe_eval(std::move(call));
+				println("{}", ctx.value_to_string(call_result));
+			}
+			else
+			{
+				println("{}", ctx.interpolate(in));
+			}
+		}
+		catch (std::exception const& e)
+		{
+			println("Error: {}", e.what());
+		}
+	}
+}
+
 int main(int argc, char** argv)
 {
 	::testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+	auto result = RUN_ALL_TESTS();
+	repl();
+	return result;
 }

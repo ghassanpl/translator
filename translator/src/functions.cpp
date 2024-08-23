@@ -148,72 +148,45 @@ namespace translator
 		return candidates;
 	}
 
-	/*
-	std::string context::array_to_string(std::vector<json> const& args) const
-	{
-		const auto elem_count = args.size();
-		const bool infix = (elem_count % 2) == 1;
-
-		if (elem_count == 1)
-			return value_to_string(args[0]);
-
-		std::string result;
-
-		/// TODO: Should we use `arg[i].type_name()` instead of "<arg>"?
-
-		if (infix)
-		{
-			//result += "[] ";
-			//result += value_to_string(args[0]);
-
-		}
-
-		for (size_t i = infix; i < elem_count; i += 2)
-		{
-			if (i != infix) result += ' ';
-			result += value_to_string(args[i]);
-			result += " []";
-		}
-
-		return result;
-	}
-	*/
-
 	void context::find_local_functions(
-		tree_type const& in_tree, 
-		std::vector<json>::const_iterator name_it, 
-		std::vector<json>::const_iterator names_end,
+		tree_type const& in_tree,
+		std::vector<json>::const_iterator arg_name_it, 
+		std::vector<json>::const_iterator arg_names_end,
 		std::set<defined_function const*>& found
 	) const
 	{
+		/// NOTE: This function probably has a high O() complexity, but it's not a problem for now.
+		/// TODO: 
+		/// We could probably cache a function set per list of argument names, but that's a later optimization.
+		/// We could probably even cache it based on the hash of the list of argument names, to improve perf.
+		/// We'd have to invalidate this cache when functions are added/removed/changed tho.
+		
 		std::vector<std::pair<std::vector<json>::const_iterator, tree_type::const_iterator>> candidates;
 
-		/// Look for optional parameters from this point
-		//if (name_it == names_end)
+		/// Look for functions with optional parameters at this point
+		for (auto& el : in_tree)
 		{
-			for (auto& el : in_tree)
+			if (el.modifier == '*')
 			{
-				if (el.modifier == '*')
-				{
-					if (el.leaf)
-						found.insert(el.leaf);
-					else
-						find_local_functions(el.child_elements, name_it, names_end, found);
-				}
+				if (el.leaf)
+					found.insert(el.leaf);
+				else
+					find_local_functions(el.child_elements, arg_name_it, arg_names_end, found);
 			}
-			//return;
 		}
 
-		if (name_it == names_end)
+		/// If we have no more argument names given, don't search in tree
+		if (arg_name_it == arg_names_end)
 			return;
 
-		auto [begin, end] = in_tree.equal_range(std::string_view{ *name_it });
-		for (auto element = begin; element != end && name_it != names_end; ++element)
+		/// Find all function subtrees that start with the next argument name
+		auto [begin, end] = in_tree.equal_range(std::string_view{ *arg_name_it });
+		for (auto element = begin; element != end && arg_name_it != arg_names_end; ++element)
 		{
-			auto name = name_it;
-			if (element->modifier == '+')
+			auto name = arg_name_it;
+			if (element->modifier == '+' || element->modifier == '*') /// Variadic parameters
 			{
-				while ((name += 2) != names_end && *name == element->name)
+				while ((name += 2) != arg_names_end && *name == element->name)
 					;
 
 				candidates.push_back({ name, element });
@@ -222,27 +195,25 @@ namespace translator
 			{
 				throw "unimplemeted";
 			}
-			else if (element->modifier == '*')
-			{
-				while ((name += 2) != names_end && *name == element->name)
-					;
-
-				candidates.push_back({ name, element });
-			}
 			else
 			{
 				candidates.push_back({ name + 2, element });
 			}
 		}
 
+		/// We now have a list of candidate subtrees
 		for (auto const& candidate : candidates)
 		{
-			if (candidate.first == names_end && candidate.second->leaf)
+			/// If we have no more argument names, and this candidate is a leaf, we found a function
+			if (candidate.first == arg_names_end && candidate.second->leaf)
 				found.insert(candidate.second->leaf);
-			else if (candidate.first != names_end)
-				find_local_functions(candidate.second->child_elements, candidate.first, names_end, found);
-			else if (candidate.first == names_end && candidate.second->child_elements.size() > 0)
-				find_local_functions(candidate.second->child_elements, candidate.first, names_end, found);
+			/// If we have no more argument names, but this candidate is not a leaf, search in its subtree
+			else if (candidate.first != arg_names_end)
+				find_local_functions(candidate.second->child_elements, candidate.first, arg_names_end, found);
+			/// If we have more argument names, but we have a candidate, it's probably because the candidate is variadic
+			/// at this point, so search in its subtree
+			else if (candidate.first == arg_names_end && candidate.second->child_elements.size() > 0)
+				find_local_functions(candidate.second->child_elements, candidate.first, arg_names_end, found);
 		}
 	}
 

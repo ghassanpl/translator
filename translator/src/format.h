@@ -10,6 +10,7 @@ namespace translator
 	using std::format;
 #if defined(__cpp_lib_print)
 	using std::print;
+	using std::println;
 #endif
 }
 #else
@@ -19,5 +20,6 @@ namespace translator
 {
 	using fmt::format;
 	using fmt::print;
+	using fmt::println;
 }
 #endif

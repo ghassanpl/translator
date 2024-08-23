@@ -446,10 +446,22 @@ namespace translator
 		return args[arg_num].type();
 	}
 
-	json context::eval_arg(std::vector<json>& args, size_t n, json::value_t type)
+	json context::eval_arg_steal(std::vector<json>& args, size_t n, json::value_t type)
 	{
 		assert_arg(args, n, type);
 		return eval(std::move(args[n]));
+	}
+
+	json context::eval_arg_copy(std::vector<json>& args, size_t n, json::value_t type)
+	{
+		assert_arg(args, n, type);
+		return eval(args[n]);
+	}
+
+	json& context::eval_arg_in_place(std::vector<json>& args, size_t n, json::value_t type)
+	{
+		assert_arg(args, n, type);
+		return args[n] = eval(std::move(args[n]));
 	}
 
 	void context::eval_args(std::vector<json>& args, size_t n)

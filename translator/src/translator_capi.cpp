@@ -28,26 +28,26 @@ void translator_delete_context(translator_context* context)
 
 using nlohmann::json;
 
-value to_value(json j)
+static value to_value(json j)
 {
 	return (value)(new json(std::move(j)));
 }
-json& to_json(value_ref v)
+static json& to_json(value_ref v)
 {
 	assert(v);
 	return *(json*)v;
 }
-json& to_json(value v)
+static json& to_json(value v)
 {
 	assert(v);
 	return *(json*)v;
 }
-value_ref to_value_ref(json& j)
+static value_ref to_value_ref(json& j)
 {
 	return (value_ref)&j;
 }
 
-json take_result(value result_value)
+static json take_result(value result_value)
 {
 	if (!result_value) return nullptr;
 	json result = std::move(to_json(result_value));
@@ -55,7 +55,7 @@ json take_result(value result_value)
 	return result;
 }
 
-auto bind_c_eval_func(translator_eval_func func, void* func_user_data)
+static auto bind_c_eval_func(translator_eval_func func, void* func_user_data)
 {
 	return [func, func_user_data](cpp_context& in_contxt, std::vector<json> arguments) {
 		std::vector<value_ref> value_copies(arguments.size());

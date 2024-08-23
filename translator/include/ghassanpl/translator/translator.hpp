@@ -52,9 +52,15 @@ namespace translator
 
 		/// Functions
 
-		auto& context_functions() { return m_functions_by_sig; }
+		auto& context_functions() const { return m_functions_by_sig; }
 
 		defined_function const* bind_function(std::string_view signature, eval_func func);
+		/// TODO: void unbind_function(defined_function const*);
+		/// TODO: void unbind_function(std::string_view signature);
+		/// TODO: void rebind_function(defined_function const*, eval_func func);
+		/// TODO: void rebind_function(std::string_view, eval_func func);
+		/// TODO: void unbind_all_functions();
+		/// TODO: void unbind_functions(std::span<defined_function const*>);
 
 		std::vector<defined_function const*> find_functions(std::vector<json> const& arguments, bool only_in_local = false) const;
 		std::vector<defined_function const*> find_functions_by_signature(std::string_view signature, bool only_in_local = false) const;
@@ -92,7 +98,9 @@ namespace translator
 		}
 
 		/// NOTE: Will invalidate value in `args` (but return an evaluated version of it)
-		[[nodiscard]] json eval_arg(std::vector<json>& args, size_t n, json::value_t type = json::value_t::discarded);
+		[[nodiscard]] json eval_arg_steal(std::vector<json>& args, size_t n, json::value_t type = json::value_t::discarded);
+		[[nodiscard]] json eval_arg_copy(std::vector<json>& args, size_t n, json::value_t type = json::value_t::discarded);
+		json& eval_arg_in_place(std::vector<json>& args, size_t n, json::value_t type = json::value_t::discarded);
 		void eval_args(std::vector<json>& args, size_t n);
 		void eval_args(std::vector<json>& args);
 
@@ -119,7 +127,21 @@ namespace translator
 
 		json eval_list(std::vector<json> args);
 
+		/// Debugging
+
+		struct call_stack_element
+		{
+			defined_function const* actual_function = nullptr;
+			std::string debug_call_sig;
+		};
 		auto& call_stack() const noexcept { return m_call_stack; }
+
+		/// Parsing; used by internal functions, but provided here for convenience
+		
+		auto consume_atom(std::string_view& sexp_str) const -> nlohmann::json;
+		auto consume_list(std::string_view& sexp_str) const -> nlohmann::json;
+		auto consume_value(std::string_view& sexp_str) const -> nlohmann::json;
+		auto consume_c_string(std::string_view& strv) const -> std::string;
 
 	private:
 
@@ -131,11 +153,6 @@ namespace translator
 
 		std::function<std::string(context const&, json const&)> m_json_value_to_str_func;
 
-		struct call_stack_element
-		{
-			defined_function const* actual_function = nullptr;
-			std::string debug_call_sig;
-		};
 		std::vector<call_stack_element> m_call_stack;
 
 		json call(defined_function const* func, std::vector<json> arguments, std::string call_frame_desc);
@@ -154,11 +171,5 @@ namespace translator
 		std::vector<defined_function const*> find_local_functions(std::vector<json> const& arguments) const;
 
 		defined_function const* get_unknown_func_handler() const noexcept;
-
-		std::string consume_c_string(std::string_view& strv) const;
-
-		auto consume_atom(std::string_view& sexp_str) const -> nlohmann::json;
-		auto consume_list(std::string_view& sexp_str) const -> nlohmann::json;
-		auto consume_value(std::string_view& sexp_str) const -> nlohmann::json;
 	};
 }
