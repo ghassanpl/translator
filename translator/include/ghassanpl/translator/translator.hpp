@@ -26,7 +26,8 @@ namespace translator
 		std::string interpolate(std::string_view str);
 		
 		/// TODO: Add these functions to the C api
-		json parse(std::string_view str);
+		json parse(std::string_view str) const;
+		json parse_call(std::string_view str) const;
 		std::string interpolate_parsed(json const& parsed);
 		std::string interpolate_parsed(json&& parsed);
 
@@ -65,7 +66,9 @@ namespace translator
 		auto& context_functions() const { return m_functions_by_sig; }
 		auto& own_functions() const { return m_functions_by_sig; }
 
-		defined_function const* bind_function(std::string_view signature, eval_func func);
+		defined_function const* bind_function(std::string_view signature, eval_func func
+			///, std::source_location loc = std::source_location::current()
+		);
 		/// TODO: void unbind_function(defined_function const*);
 		/// TODO: void unbind_function(std::string_view signature);
 		/// TODO: void rebind_function(defined_function const*, eval_func func);

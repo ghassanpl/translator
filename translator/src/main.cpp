@@ -179,6 +179,17 @@ void open_core_lib(context& e)
 	e.bind_function("list [] , [*]", list);
 	e.bind_function("cat [] , [*] and []", op_cat);
 
+	///e.bind_function("interpolate [] with [?]", 
+	e.bind_function("interpolate []", [](context& e, std::vector<json> args) -> json {
+		return e.interpolate(e.eval_arg_steal(args, 0, json::value_t::string));
+	});
+	e.bind_function("parse []", [](context& e, std::vector<json> args) -> json {
+		return e.parse(e.eval_arg_steal(args, 0, json::value_t::string));
+	});
+	e.bind_function("run []", [](context& e, std::vector<json> args) -> json {
+		return e.interpolate_parsed(e.eval_arg_steal(args, 0, json::value_t::array));
+	});
+
 	/// TODO: 'default' should be optional
 	///ctx.bind_function("match [] with [+] default [?]", [](context& e, std::vector<json> args) -> json {
 	e.bind_function("match [] with [*] default []", [](context& e, std::vector<json> args) -> json {

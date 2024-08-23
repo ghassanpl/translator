@@ -28,9 +28,14 @@ namespace translator
 
 		const auto copy = signature_spec;
 		auto param_array = consume_list(signature_spec);
-		if (!signature_spec.empty() || param_array.empty())
+		if (!signature_spec.empty())
 		{
 			report_error(format("invalid function signature at point: {} (signature: {})", signature_spec, copy));
+			return {};
+		}
+		if (param_array.empty())
+		{
+			report_error(format("function signature cannot be empty"));
 			return {};
 		}
 

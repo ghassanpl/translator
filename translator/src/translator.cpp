@@ -242,7 +242,7 @@ namespace translator
 		return result;
 	}
 
-	json context::parse(std::string_view str)
+	json context::parse(std::string_view str) const
 	{
 		json result = json::array();
 		std::string latest_str;
@@ -262,6 +262,14 @@ namespace translator
 		}
 		if (!latest_str.empty())
 			result.push_back(std::move(latest_str));
+		return result;
+	}
+
+	json context::parse_call(std::string_view str) const
+	{
+		auto result = consume_list(str);
+		if (!str.empty())
+			return report_error("Additional tokens after end of list: " + std::string{ str });
 		return result;
 	}
 
@@ -375,7 +383,9 @@ namespace translator
 		}
 		else if (function_candidates.size() > 1)
 		{
-			std::vector<std::string> signatures; /// = function_candidates | transform(to_signature)
+			std::vector<std::string> signatures;
+			for (auto& candidate : function_candidates)
+				signatures.push_back(candidate->signature);
 			return report_error(format("multiple functions for call '{}' found: {}", array_to_string(args), join(signatures, "\n")));
 		}
 
