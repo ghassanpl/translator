@@ -35,11 +35,11 @@ There is no built-in syntax or operator precedence; everything is considered eit
 <td style="vertical-align: top">
 
 ```fluent
-Hello, {$userName}!
+hello-user = Hello, {$userName}!
 ```
 
 ```fluent
-{$userName} {$photoCount ->
+shared-photos = {$userName} {$photoCount ->
 	[one] added a new photo
 	*[other] added {$photoCount} new photos
 } to {$userGender ->
@@ -52,11 +52,11 @@ Hello, {$userName}!
 </td>
 <td>
 
-```
+```st
 Hello, [.userName]!
 ```
 
-```
+```zil
 [.userName] [.photoCount 
 	1? "added a new photo" 
 	else ["added ", .photoCount, " new photos"]
