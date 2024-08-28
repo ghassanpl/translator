@@ -106,7 +106,11 @@ namespace translator
 			{
 				cp = consume(view);
 				if (view.empty())
-					return report_error("unterminated C string");
+				{
+					if (options.strict_syntax)
+						return report_error("unterminated C string");
+					return result;
+				}
 
 				switch (cp)
 				{
@@ -115,7 +119,10 @@ namespace translator
 				case '\'': result += '\''; break;
 				case '\\': result += '\\'; break;
 				default:
-					return report_error("unknown escape character");
+					if (options.strict_syntax)
+						return report_error(format("unknown escape character '{}'", cp));
+					result += cp;
+					break;
 				}
 			}
 			else
@@ -124,10 +131,14 @@ namespace translator
 			}
 
 			if (view.empty())
-				return report_error("unterminated C string");
+			{
+				if (options.strict_syntax)
+					return report_error("unterminated C string");
+				break;
+			}
 		}
 
-		if (!consume(view, delimiter))
+		if (!consume(view, delimiter) && options.strict_syntax)
 			return report_error("C string must end with delimiter");
 
 		strv = view;
@@ -193,7 +204,7 @@ namespace translator
 		return result;
 	}
 
-	auto context::consume_list(std::string_view& sexp_str) const -> nlohmann::json
+	auto context::consume_list(std::string_view& sexp_str, bool require_closing_delim) const -> nlohmann::json
 	{
 		nlohmann::json result = nlohmann::json::array();
 		trim_whitespace_left(sexp_str);
@@ -202,7 +213,9 @@ namespace translator
 			result.push_back(consume_value(sexp_str));
 			trim_whitespace_left(sexp_str);
 		}
-		consume(sexp_str, options.closing_delimiter);
+		auto closing = consume(sexp_str, options.closing_delimiter);
+		if (require_closing_delim && options.strict_syntax && !closing)
+			return report_error("list must end with closing delimiter");
 		return result;
 	}
 
@@ -267,7 +280,7 @@ namespace translator
 
 	json context::parse_call(std::string_view str) const
 	{
-		auto result = consume_list(str);
+		auto result = consume_list(str, false);
 		if (!str.empty())
 			return report_error("Additional tokens after end of list: " + std::string{ str });
 		return result;
@@ -454,6 +467,9 @@ namespace translator
 		return format("{}{}{}", options.opening_delimiter, join(arguments, " ", [this](json const& v) { return value_to_string(v); }), options.closing_delimiter);
 	}
 
+
+	/// TODO: These functions use array_to_string(args) to determine the function signature, which is not correct
+	
 	void context::assert_args(std::vector<json> const& args, size_t arg_count) const
 	{
 		if (args.size() != arg_count)

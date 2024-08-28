@@ -185,7 +185,7 @@ namespace translator
 		/// ////////////////////////////////////////////////////////////////////////// ///
 		
 		auto consume_atom(std::string_view& sexp_str) const -> nlohmann::json;
-		auto consume_list(std::string_view& sexp_str) const -> nlohmann::json;
+		auto consume_list(std::string_view& sexp_str, bool require_closing_delim = true) const -> nlohmann::json;
 		auto consume_value(std::string_view& sexp_str) const -> nlohmann::json;
 		auto consume_c_string(std::string_view& strv) const -> std::string;
 

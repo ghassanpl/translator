@@ -177,8 +177,9 @@ void open_core_lib(context& e)
 	e.bind_function("[] and [+]", op_and);
 	e.bind_function("[] or [+]", op_or);
 	e.bind_function("list [] , [*]", list);
+	//e.bind_function("list", list);
 	e.bind_function("cat [] , [*] and []", op_cat);
-
+	
 	///e.bind_function("interpolate [] with [?]", 
 	e.bind_function("interpolate []", [](context& e, std::vector<json> args) -> json {
 		return e.interpolate(e.eval_arg_steal(args, 0, json::value_t::string));
@@ -216,13 +217,12 @@ struct translator_f : public testing::Test {
 		ctx.unknown_var_value_getter() = [](context const&, std::string_view var) -> json {
 			throw var;
 			//return "<no var " + std::string{ var } + " found>";
-			};
+		};
 		ctx.unknown_func_handler() = [](context& c, std::vector<json> args) -> json {
 			return c.report_error("function for call '" + c.array_to_string(args) + "' not found");
 		};
 		ctx.error_handler() = [](context const&, std::string_view err) -> std::string {
-			throw err;
-			//return fmt::format("<error: {}>", err);
+			throw std::runtime_error(std::string{ err });
 		};
 	}
 
@@ -242,31 +242,12 @@ TEST_F(translator_f, capi_works)
 
 TEST_F(translator_f, variadic_arguments_work)
 {
-	//println("{}", ctx.interpolate("[list]"));
-
 	EXPECT_EQ("567", ctx.interpolate("[5,6,7]"));
 	EXPECT_EQ("[5]", ctx.interpolate("[list 5]"));
 	EXPECT_EQ("[5 6]", ctx.interpolate("[list 5,6]"));
 	EXPECT_EQ("[5 6 7]", ctx.interpolate("[list 5,6,7]"));
 	EXPECT_EQ("ad", ctx.interpolate("[cat a and d]"));
 	EXPECT_EQ("abcd", ctx.interpolate("[cat a, b, c and d]"));
-}
-
-TEST_F(translator_f, variadic_functions_are_sanely_searched)
-{
-	ctx.error_handler() = [&](context const&, std::string_view err) -> std::string {
-		throw std::runtime_error(std::string{ err });
-	};
-
-	int called_once = 0;
-	ctx.bind_function("[] meh [*]", [&](context& e, std::vector<json> args)->json {
-		called_once <<= 1;
-		called_once |= 1;
-		return nullptr;
-	});
-	ctx.interpolate("[0 meh 1]");
-	EXPECT_THROW(ctx.interpolate("[5]"), std::runtime_error);
-	EXPECT_EQ(called_once, 1) << "Infix function with optional last arg incorrectly called for single-element call";
 }
 
 TEST_F(translator_f, user_vars_work)
@@ -341,6 +322,14 @@ TEST_F(translator_f, fluent_features_lol)
 	EXPECT_EQ("Xen added 0 new photos to their stream.", ctx.interpolate(str));
 }
 
+TEST_F(translator_f, defining_functions_in_code_works)
+{
+	ctx.eval(ctx.parse_call("define [a <> b] as [not [.a == .b]]"));
+	ctx.eval(ctx.parse_call("[a != b] => [not [.a == .b]]"));
+	EXPECT_EQ(ctx.interpolate("[3 <> 2]"), "true");
+	EXPECT_EQ(ctx.interpolate("[3 <> 3]"), "false");
+}
+
 void open_repl_lib(context& c)
 {
 	c.bind_function("[] = []", [](context& e, std::vector<json> args) -> json {
@@ -377,8 +366,12 @@ void repl()
 		{
 			if (exec_mode)
 			{
+				in.insert(0, 1, '[');
+				in.push_back(']');
 				std::string_view insv = in;
-				json call = ctx.consume_list(insv);
+				json call = ctx.consume_value(insv);
+				if (!insv.empty())
+					throw std::runtime_error(format("unexpected token: '{}'", insv));
 				json call_result = ctx.safe_eval(std::move(call));
 				println("{}", ctx.value_to_string(call_result));
 			}
@@ -392,6 +385,60 @@ void repl()
 			println("Error: {}", e.what());
 		}
 	}
+}
+
+TEST_F(translator_f, single_optional_should_work)
+{
+	/// TODO: This is a special case, and I'm not sure I'm keen on actually implementing it
+	/*
+	ctx.bind_function("hello [?]", [](context& e, std::vector<json> args) -> json {
+		return e.array_to_string(args);
+	});
+	EXPECT_EQ(ctx.interpolate("[hello]"), "[]");
+	EXPECT_EQ(ctx.interpolate("[hello world]"), "[world]");
+	*/
+}
+
+TEST_F(translator_f, noarg_functions_work)
+{
+	ctx.bind_function("ass", [](context& e, std::vector<json> args) -> json {
+		return "asstastic";
+	});
+	EXPECT_EQ(ctx.interpolate("[ass]"), "asstastic");
+}
+
+TEST_F(translator_f, variadic_functions_are_sanely_defined)
+{
+	EXPECT_THROW(ctx.bind_function("hello2 [?] or []", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
+
+	ctx.bind_function("boop [+]", [](context& e, std::vector<json> args) -> json {
+		return e.array_to_string(args);
+	});
+	EXPECT_THROW(ctx.interpolate("[boop]"), std::runtime_error);
+	EXPECT_EQ(ctx.interpolate("[boop a]"), "[a]");
+	EXPECT_EQ(ctx.interpolate("[boop a boop b]"), "[a b]");
+	EXPECT_EQ(ctx.interpolate("[boop a boop b boop c]"), "[a b c]");
+
+	ctx.bind_function("boop2 [+] or []", [](context& e, std::vector<json> args) -> json { 
+		return e.array_to_string(args);;
+	});
+	EXPECT_THROW(ctx.interpolate("[boop2 a]"), std::runtime_error);
+	EXPECT_THROW(ctx.interpolate("[or a]"), std::runtime_error);
+	EXPECT_EQ(ctx.interpolate("[boop2 a or e]"), "[a e]");
+	EXPECT_EQ(ctx.interpolate("[boop2 a boop2 b or e]"), "[a b e]");
+	EXPECT_THROW(ctx.interpolate("[boop2 a or e or c]"), std::runtime_error);
+
+	EXPECT_THROW(ctx.bind_function("boop3 [*]", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }), std::runtime_error);
+
+	EXPECT_THROW(ctx.bind_function("boop4 [*] or []", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("[*] meh [*]", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("[*] meh []", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("[] meh [*]", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+}
+TEST_F(translator_f, simple_bindings_work)
+{
+	ctx.bind_simple_function("[] + []", [](int a, int b) { return a + b; });
+	EXPECT_EQ(ctx.interpolate("[hello]"), "world");
 }
 
 int main(int argc, char** argv)

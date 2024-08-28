@@ -19,6 +19,7 @@ inline namespace translator {
 		context->options.opening_delimiter = '[';
 		context->options.closing_delimiter = ']';
 		context->options.var_symbol = '.';
+		context->options.strict_syntax = true;
 	}
 
 #define self ((cpp_context*)context)

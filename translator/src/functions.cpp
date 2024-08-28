@@ -27,7 +27,7 @@ namespace translator
 		/// - eval/noeval - if we make `bind_function` and `bind_macro` separate... :)
 
 		const auto copy = signature_spec;
-		auto param_array = consume_list(signature_spec);
+		auto param_array = consume_list(signature_spec, false);
 		if (!signature_spec.empty())
 		{
 			report_error(format("invalid function signature at point: {} (signature: {})", signature_spec, copy));
@@ -80,7 +80,6 @@ namespace translator
 		func_tree_element const* last_func_element = nullptr;
 		std::string signature;
 		if (infix) {
-			//signature += "[]";
 			signature += options.opening_delimiter;
 			signature += options.closing_delimiter;
 		}

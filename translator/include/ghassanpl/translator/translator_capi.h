@@ -28,6 +28,7 @@ struct translator_context
 		char var_symbol;
 		bool maintain_call_stack;
 		bool call_stack_store_call_string;
+		bool strict_syntax;
 	} options;
 };
 typedef struct translator_context translator_context;
