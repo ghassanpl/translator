@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef __cplusplus
-inline namespace translator
+namespace translator
 {
 extern "C" {
 #else
@@ -29,6 +29,7 @@ struct translator_context
 		bool maintain_call_stack;
 		bool call_stack_store_call_string;
 		bool strict_syntax;
+		char hex_prefix; /// If != 0, atoms that start with this prefix will try to be parsed as hex numbers first
 	} options;
 };
 typedef struct translator_context translator_context;

@@ -169,38 +169,37 @@ namespace translator
 		if (result == "false") return false;
 		if (result == "null") return nullptr;
 
+		if (options.hex_prefix && starts_with(result, options.hex_prefix))
+		{
+			const auto hex_data = result.substr(1);
+			json::number_unsigned_t num_result{};
+			const auto fcres = std::from_chars(hex_data.data(), hex_data.data() + hex_data.size(), num_result, 16);
+			if (fcres.ec == std::errc{} && fcres.ptr == sexp_str.data()) /// If we ate the ENTIRE number
+				return num_result;
+		}
+
 		/// Try paring as number
 		{
 			nlohmann::json::number_integer_t num_result{};
 			const auto fcres = std::from_chars(result.data(), result.data() + result.size(), num_result);
 			if (fcres.ec == std::errc{} && fcres.ptr == sexp_str.data()) /// If we ate the ENTIRE number
-			{
-				trim_whitespace_left(sexp_str);
 				return num_result;
-			}
 		}
 
 		{
 			nlohmann::json::number_unsigned_t num_result{};
 			const auto fcres = std::from_chars(result.data(), result.data() + result.size(), num_result);
 			if (fcres.ec == std::errc{} && fcres.ptr == sexp_str.data()) /// If we ate the ENTIRE number
-			{
-				trim_whitespace_left(sexp_str);
 				return num_result;
-			}
 		}
 
 		{
 			nlohmann::json::number_float_t num_result{};
 			const auto fcres = std::from_chars(result.data(), result.data() + result.size(), num_result);
 			if (fcres.ec == std::errc{} && fcres.ptr == sexp_str.data()) /// If we ate the ENTIRE number
-			{
-				trim_whitespace_left(sexp_str);
 				return num_result;
-			}
 		}
 
-		trim_whitespace_left(sexp_str);
 		return result;
 	}
 
@@ -504,10 +503,10 @@ namespace translator
 			{
 				auto& entry = m_call_stack.back();
 
-				throw std::runtime_error{ report_error(format("argument #{} to function {} must be of type {}, {} given",
+				throw std::runtime_error{ report_error(format("argument {} to function {} must be of type {}, {} given",
 					arg_num, entry.actual_function->signature, json(type).type_name(), value.type_name())) };
 			}
-			throw std::runtime_error{ report_error(format("argument #{} to function {} must be of type {}, {} given",
+			throw std::runtime_error{ report_error(format("argument {} to function {} must be of type {}, {} given",
 				arg_num, array_to_string(args), json(type).type_name(), value.type_name())) };
 		}
 		return value.type();

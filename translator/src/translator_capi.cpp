@@ -3,7 +3,7 @@
 
 /// C API
 
-inline namespace translator {
+namespace translator {
 
 	using cpp_context = translator::context;
 
