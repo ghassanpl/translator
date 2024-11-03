@@ -14,6 +14,7 @@ namespace translator
 		std::string signature;
 		std::function<json(context&, std::vector<json>)> func;
 		func_tree_element const* element = nullptr;
+		uintptr_t user_data = 0;
 	};
 
 	struct func_tree_element

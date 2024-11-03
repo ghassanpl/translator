@@ -45,7 +45,7 @@ namespace translator
 		{
 			if (!param_array[0].is_string() || param_array[0].empty())
 			{
-				report_error(format("function name must be a string, not '{}'", value_to_string(param_array[0])));
+				report_error(format("function name part must be a non-empty string, not '{}'", value_to_string(param_array[0])));
 				return {};
 			}
 
@@ -63,66 +63,56 @@ namespace translator
 		for (size_t i = 0; i < elem_count + infix; i += 2)
 		{
 			auto const& param_decl = param_array[i + !infix];
-			if (!param_decl.is_array())
+			if (!param_decl.is_string() || param_decl.empty())
 			{
-				report_error(format("function parameter declaration must be an array, not '{}'", value_to_string(param_decl)));
+				report_error(format("function parameter name must be a non-empty string, not '{}'", value_to_string(param_decl)));
 				return {};
 			}
 		}
 
-		if (infix && (!param_array.is_array() || !param_array[0].empty()))
+		static constexpr char zero_or_more = '*';
+		static constexpr char one_or_more = '+';
+		static constexpr char optional = '?';
+		static constexpr std::string_view modifiers = "*+?";
+
+		if (infix && modifiers.find(std::string_view{ param_array[0] }.back()) != std::string::npos)
 		{
-			report_error(format("first function parameter of infix functions cannot have attributes"));
+			report_error(format("first function parameter of infix functions cannot have modifiers"));
 			return {};
 		}
 
 		auto* tree = infix ? &m_infix_function_tree : &m_prefix_function_tree;
 		func_tree_element const* last_func_element = nullptr;
 		std::string signature;
-		if (infix) {
-			signature += options.opening_delimiter;
-			signature += options.closing_delimiter;
-		}
+		if (infix)
+			signature += param_array[0];
 
 		for (size_t i = infix; i < elem_count; i += 2)
 		{
 			auto& prefix = param_array[i];
-			auto const& param_decl = param_array[i + 1];
+			std::string_view param_decl = param_array[i + 1];
 
 			if (i != 0) signature += ' ';
 			signature += prefix;
 			signature += ' ';
-			signature += options.opening_delimiter;
-			signature += join(param_decl, ' ', [](json const& wut) -> std::string { return wut; });
-			signature += options.closing_delimiter;
+			signature += param_decl;
 
 			func_tree_element el;
 			el.name = std::move(prefix.get_ref<json::string_t&>());
 			el.modifier = 0;
 			//el.leaf_signature = signature;
 
-			for (auto& modifier : param_decl)
-			{
-				static const json zero_or_more = "*";
-				static const json one_or_more = "+";
-				static const json optional = "?";
-				if (modifier == one_or_more)
-					el.modifier = '+';
-				else if (modifier == zero_or_more)
-					el.modifier = '*';
-				else if (modifier == optional)
-					el.modifier = '?';
-				else
-				{
-					report_error(format("function parameter attribute '{}' not supported", value_to_string(modifier)));
-					return {};
-				}
+			if (param_decl.back() == one_or_more)
+				el.modifier = '+';
+			else if (param_decl.back() == zero_or_more)
+				el.modifier = '*';
+			else if (param_decl.back() == optional)
+				el.modifier = '?';
 
-				if (i == 0 && el.modifier != '+')
-				{
-					report_error(format("first function parameter cannot be optional", value_to_string(modifier)));
-					return {};
-				}
+			if (i == 0 && (el.modifier == '*' || el.modifier == '?'))
+			{
+				report_error(format("first function parameter cannot be optional"));
+				return {};
 			}
 
 			last_func_element = &*tree->insert(std::move(el)).first;

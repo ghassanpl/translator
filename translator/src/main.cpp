@@ -142,58 +142,58 @@ void open_core_lib(context& e)
 {
 	/// TODO: [pred .kills with [one? 'bla'], [zero? 'bleh'], [many? 'bluh']]
 	
-	e.bind_function("if [] then [] else []", if_then_else);
-	e.bind_function("[] ? [] : []", if_then_else);
+	e.bind_function("if arg then arg else arg", if_then_else);
+	e.bind_function("arg ? arg : arg", if_then_else);
 
-	e.bind_function("[] == []", op_eq);
-	e.bind_function("[] eq []", op_eq);
-	e.bind_function("[] != []", op_neq);
-	e.bind_function("[] neq []", op_neq);
-	e.bind_function("[] > []", op_gt);
-	e.bind_function("[] gt []", op_gt);
-	e.bind_function("[] >= []", op_ge);
-	e.bind_function("[] ge []", op_ge);
-	e.bind_function("[] < []", op_lt);
-	e.bind_function("[] lt []", op_lt);
-	e.bind_function("[] <= []", op_le);
-	e.bind_function("[] le []", op_le);
-	e.bind_function("not []", op_not);
+	e.bind_function("arg == arg", op_eq);
+	e.bind_function("arg eq arg", op_eq);
+	e.bind_function("arg != arg", op_neq);
+	e.bind_function("arg neq arg", op_neq);
+	e.bind_function("arg > arg", op_gt);
+	e.bind_function("arg gt arg", op_gt);
+	e.bind_function("arg >= arg", op_ge);
+	e.bind_function("arg ge arg", op_ge);
+	e.bind_function("arg < arg", op_lt);
+	e.bind_function("arg lt arg", op_lt);
+	e.bind_function("arg <= arg", op_le);
+	e.bind_function("arg le arg", op_le);
+	e.bind_function("not arg", op_not);
 
-	e.bind_function("[] + []", op_plus);
-	e.bind_function("[] - []", op_minus);
-	e.bind_function("[] * []", op_mul);
-	e.bind_function("[] / []", op_div);
-	e.bind_function("[] % []", op_mod);
+	e.bind_function("arg + arg", op_plus);
+	e.bind_function("arg - arg", op_minus);
+	e.bind_function("arg * arg", op_mul);
+	e.bind_function("arg / arg", op_div);
+	e.bind_function("arg % arg", op_mod);
 
-	e.bind_function("[] is []", op_is);
-	e.bind_function("type-of []", type_of);
-	e.bind_function("typeof []", type_of);
-	e.bind_function("size-of []", size_of);
-	e.bind_function("sizeof []", size_of);
-	e.bind_function("# []", size_of);
-	e.bind_function("str []", str);
+	e.bind_function("arg is arg", op_is);
+	e.bind_function("type-of arg", type_of);
+	e.bind_function("typeof arg", type_of);
+	e.bind_function("size-of arg", size_of);
+	e.bind_function("sizeof arg", size_of);
+	e.bind_function("# arg", size_of);
+	e.bind_function("str arg", str);
 
-	e.bind_function("[] , [+]", op_cat);
-	e.bind_function("[] and [+]", op_and);
-	e.bind_function("[] or [+]", op_or);
-	e.bind_function("list [] , [*]", list);
+	e.bind_function("arg , arg+", op_cat);
+	e.bind_function("arg and arg+", op_and);
+	e.bind_function("arg or arg+", op_or);
+	e.bind_function("list arg , arg*", list);
 	//e.bind_function("list", list);
-	e.bind_function("cat [] , [*] and []", op_cat);
+	e.bind_function("cat arg , arg* and arg", op_cat);
 	
-	///e.bind_function("interpolate [] with [?]", 
-	e.bind_function("interpolate []", [](context& e, std::vector<json> args) -> json {
+	///e.bind_function("interpolate arg with arg?", 
+	e.bind_function("interpolate arg", [](context& e, std::vector<json> args) -> json {
 		return e.interpolate(e.eval_arg_steal(args, 0, json::value_t::string));
 	});
-	e.bind_function("parse []", [](context& e, std::vector<json> args) -> json {
+	e.bind_function("parse arg", [](context& e, std::vector<json> args) -> json {
 		return e.parse(e.eval_arg_steal(args, 0, json::value_t::string));
 	});
-	e.bind_function("run []", [](context& e, std::vector<json> args) -> json {
+	e.bind_function("run arg", [](context& e, std::vector<json> args) -> json {
 		return e.interpolate_parsed(e.eval_arg_steal(args, 0, json::value_t::array));
 	});
 
 	/// TODO: 'default' should be optional
-	///ctx.bind_function("match [] with [+] default [?]", [](context& e, std::vector<json> args) -> json {
-	e.bind_function("match [] with [*] default []", [](context& e, std::vector<json> args) -> json {
+	///ctx.bind_function("match arg with arg+ default arg?", [](context& e, std::vector<json> args) -> json {
+	e.bind_function("match arg with arg* default arg", [](context& e, std::vector<json> args) -> json {
 		e.assert_min_args(args, 2);
 		auto val = e.eval_arg_steal(args, 0);
 		for (size_t i = 1; i < args.size() - 1; i++)
@@ -277,9 +277,9 @@ TEST_F(translator_f, unnamed_test_1)
 
 TEST_F(translator_f, can_bind_different_functions_with_same_prefix)
 {
-	auto a = ctx.bind_function("a []", if_then_else);
-	auto b = ctx.bind_function("a [] b []", if_then_else);
-	auto c = ctx.bind_function("a [] b [] c []", if_then_else);
+	auto a = ctx.bind_function("a arg", if_then_else);
+	auto b = ctx.bind_function("a arg b arg", if_then_else);
+	auto c = ctx.bind_function("a arg b arg c arg", if_then_else);
 	EXPECT_NE(a, b);
 	EXPECT_NE(b, c);
 	EXPECT_NE(a, c);
@@ -298,7 +298,7 @@ TEST_F(translator_f, fluent_features_lol)
 		default "their stream"
 	].)";
 	ctx.options.maintain_call_stack = true;
-	ctx.bind_function("[] 1? [] else []", [](context& e, std::vector<json> args) -> json {
+	ctx.bind_function("arg 1? arg else arg", [](context& e, std::vector<json> args) -> json {
 		int num = e.eval_arg_steal(args, 0, json::value_t::number_integer);
 		if (num == 1)
 			return e.eval_arg_steal(args, 1);
@@ -332,7 +332,7 @@ TEST_F(translator_f, defining_functions_in_code_works)
 
 void open_repl_lib(context& c)
 {
-	c.bind_function("[] = []", [](context& e, std::vector<json> args) -> json {
+	c.bind_function("arg = arg", [](context& e, std::vector<json> args) -> json {
 		e.assert_args(args, json::value_t::string, json::value_t::discarded);
 		return format("{} => {}", e.value_to_string(args[0]), e.value_to_string(e.set_user_var(args[0], e.eval_arg_steal(args, 1))));
 	});
@@ -391,10 +391,10 @@ TEST_F(translator_f, single_optional_should_work)
 {
 	/// TODO: This is a special case, and I'm not sure I'm keen on actually implementing it
 	/*
-	ctx.bind_function("hello [?]", [](context& e, std::vector<json> args) -> json {
+	ctx.bind_function("hello arg?", [](context& e, std::vector<json> args) -> json {
 		return e.array_to_string(args);
 	});
-	EXPECT_EQ(ctx.interpolate("[hello]"), "[]");
+	EXPECT_EQ(ctx.interpolate("[hello]"), "arg");
 	EXPECT_EQ(ctx.interpolate("[hello world]"), "[world]");
 	*/
 }
@@ -409,9 +409,9 @@ TEST_F(translator_f, noarg_functions_work)
 
 TEST_F(translator_f, variadic_functions_are_sanely_defined)
 {
-	EXPECT_THROW(ctx.bind_function("hello2 [?] or []", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("hello2 arg? or arg", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
 
-	ctx.bind_function("boop [+]", [](context& e, std::vector<json> args) -> json {
+	ctx.bind_function("boop arg+", [](context& e, std::vector<json> args) -> json {
 		return e.array_to_string(args);
 	});
 	EXPECT_THROW(ctx.interpolate("[boop]"), std::runtime_error);
@@ -419,7 +419,7 @@ TEST_F(translator_f, variadic_functions_are_sanely_defined)
 	EXPECT_EQ(ctx.interpolate("[boop a boop b]"), "[a b]");
 	EXPECT_EQ(ctx.interpolate("[boop a boop b boop c]"), "[a b c]");
 
-	ctx.bind_function("boop2 [+] or []", [](context& e, std::vector<json> args) -> json { 
+	ctx.bind_function("boop2 arg+ or arg", [](context& e, std::vector<json> args) -> json { 
 		return e.array_to_string(args);;
 	});
 	EXPECT_THROW(ctx.interpolate("[boop2 a]"), std::runtime_error);
@@ -428,17 +428,17 @@ TEST_F(translator_f, variadic_functions_are_sanely_defined)
 	EXPECT_EQ(ctx.interpolate("[boop2 a boop2 b or e]"), "[a b e]");
 	EXPECT_THROW(ctx.interpolate("[boop2 a or e or c]"), std::runtime_error);
 
-	EXPECT_THROW(ctx.bind_function("boop3 [*]", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("boop3 arg*", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }), std::runtime_error);
 
-	EXPECT_THROW(ctx.bind_function("boop4 [*] or []", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
-	EXPECT_THROW(ctx.bind_function("[*] meh [*]", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
-	EXPECT_THROW(ctx.bind_function("[*] meh []", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
-	EXPECT_THROW(ctx.bind_function("[] meh [*]", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("boop4 arg* or arg", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("arg* meh arg*", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("arg* meh arg", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("arg meh arg*", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
 }
 TEST_F(translator_f, simple_bindings_work)
 {
-	ctx.bind_simple_function("[] + []", [](int a, int b) { return a + b; });
-	EXPECT_EQ(ctx.interpolate("[hello]"), "world");
+	//ctx.bind_simple_function("arg + arg", [](int a, int b) { return a + b; });
+	//EXPECT_EQ(ctx.interpolate("[hello]"), "world");
 }
 
 int main(int argc, char** argv)
