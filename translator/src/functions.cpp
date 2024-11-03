@@ -132,11 +132,11 @@ namespace translator
 		std::set<defined_function const*>& found
 	) const
 	{
-		std::vector<std::pair<std::vector<json>::const_iterator, tree_type const*>> subtrees_to_consider{ { arg_name_it, &tree} };
+		std::vector subtrees_to_consider{ std::pair{ arg_name_it, &tree } };
 
 		while (!subtrees_to_consider.empty())
 		{
-			auto [arg_name_it, in_tree] = subtrees_to_consider.back();
+			const auto [arg_name_it, in_tree] = subtrees_to_consider.back();
 			subtrees_to_consider.pop_back();
 
 			std::vector<std::pair<std::vector<json>::const_iterator, tree_type::const_iterator>> new_candidates;
@@ -144,11 +144,8 @@ namespace translator
 			/// Look for functions with optional parameters at this point
 			for (auto it = in_tree->begin(); it != in_tree->end(); ++it)
 			{
-				auto& el = *it;
-				if (el.modifier == '*' || el.modifier == '?')
-				{
+				if (it->modifier == '*' || it->modifier == '?')
 					new_candidates.push_back({ arg_name_it, it });
-				}
 			}
 
 			/// If we have more argument names given, search tree for subtrees that start with the next argument name

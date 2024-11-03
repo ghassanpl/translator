@@ -1,3 +1,4 @@
 translator/build/
 *.idb
 /translator_tests/build/
+*.7z

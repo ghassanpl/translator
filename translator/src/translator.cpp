@@ -64,7 +64,7 @@ namespace translator
 		return std::string_view{ start, size_t(str.data() - start) };
 	}
 
-	auto default_json_value_to_str_func(context const& c, json const& j) -> std::string {
+	auto context::default_json_value_to_str_func(context const& c, json const& j) -> std::string {
 		switch (j.type())
 		{
 		case json::value_t::string: return j.get_ref<json::string_t const&>();
@@ -481,7 +481,7 @@ namespace translator
 	void context::assert_args(std::vector<json> const& args, size_t arg_count) const
 	{
 		if (args.size() != arg_count)
-			throw std::runtime_error{ report_error(format("function {} requires exactly {} arguments, {} given", array_to_string(args), arg_count, args.size() - 1)) };
+			throw std::runtime_error{ report_error(format("function {} requires exactly {} arguments, {} given", array_to_string(args), arg_count, args.size())) };
 	}
 
 	void context::assert_args(std::vector<json> const& args, size_t min_args, size_t max_args) const
@@ -515,8 +515,8 @@ namespace translator
 				throw std::runtime_error{ report_error(format("argument {} to function {} must be of type {}, {} given",
 					arg_num, entry.actual_function->signature, json(type).type_name(), value.type_name())) };
 			}
-			throw std::runtime_error{ report_error(format("argument {} to function {} must be of type {}, {} given",
-				arg_num, array_to_string(args), json(type).type_name(), value.type_name())) };
+			throw std::runtime_error{ report_error(format("argument {} to function must be of type {}, {} given",
+				arg_num, json(type).type_name(), value.type_name())) };
 		}
 		return value.type();
 	}

@@ -2,6 +2,7 @@
 
 #include "translator_capi.h"
 #include "detail/functions.h"
+#include <optional>
 #include <vector>
 
 namespace translator
@@ -81,6 +82,8 @@ namespace translator
 		/// TODO: std::vector<defined_function const*> find_closest(std::vector<json> const& arguments, bool only_in_local = false) const;
 		
 		eval_func& unknown_func_handler() { return m_unknown_func_handler.func; }
+		auto& json_value_to_string_func() { return m_json_value_to_str_func; }
+		static std::string default_json_value_to_str_func(context const& c, json const& j);
 
 		std::string report_error(std::string_view error) const;
 
@@ -151,7 +154,7 @@ namespace translator
 		eval_args(std::vector<json>& args, T... arg_types)
 		{
 			static constexpr size_t arg_count = sizeof...(T);
-			assert_args(args, arg_count);
+			assert_min_args(args, arg_count);
 
 			const auto types = std::array<nlohmann::json::value_t, arg_count>{ arg_types... };
 			for (size_t i = 0; i < types.size(); ++i)
@@ -159,7 +162,19 @@ namespace translator
 				if (types[i] != json::value_t::discarded)
 					args[i] = eval_arg_in_place(args, i, types[i]);
 			}
+			for (size_t i = types.size(); i<args.size(); ++i)
+				args[i] = eval_arg_in_place(args, i);
 		}
+
+		template <typename T>
+		std::optional<T> opt_arg(std::vector<json>& args, size_t index) const
+		{
+			if (index >= args.size())
+				return std::nullopt;
+			return args[index].get<T>();
+		}
+
+		json const* opt_arg(std::vector<json>& args, size_t index);
 
 		json eval(json const& val);
 		json safe_eval(json const& value);
@@ -203,6 +218,8 @@ namespace translator
 		std::function<std::string(context const&, json const&)> m_json_value_to_str_func;
 
 		std::vector<call_stack_element> m_call_stack;
+		/// TODO: If we don't want to maintain a call stack, we can also just keep a single "m_current_call" that we adjust
+		/// based on the calls to `call()`.
 
 		json call(defined_function const* func, std::vector<json> arguments, std::string call_frame_desc);
 
