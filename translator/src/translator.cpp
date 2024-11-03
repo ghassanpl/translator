@@ -371,9 +371,6 @@ namespace translator
 		if (args.empty())
 			return nullptr;
 
-		const auto elem_count = args.size();
-		const bool infix = (elem_count % 2) == 1;
-
 		if (args.size() == 1 && args[0].is_string() && !args[0].empty() && std::string_view{ args[0] } [0] == options.var_symbol)
 			return user_var(std::string_view{ args[0] }.substr(1));
 
@@ -398,28 +395,40 @@ namespace translator
 			std::vector<std::string> signatures;
 			for (auto& candidate : function_candidates)
 				signatures.push_back(candidate->signature);
-			return report_error(format("multiple functions for call '{}' found: {}", array_to_string(args), join(signatures, "\n")));
+			return report_error(format("multiple functions for call '{}' found: {}", array_to_string(args), 
+				join(signatures, ", ", [](auto sig) { return format("[{}]", sig); })));
 		}
+		const auto func = function_candidates[0];
+		assert(func);
 
 		std::string call_frame_desc;
 		if (options.maintain_call_stack && options.call_stack_store_call_string)
 			call_frame_desc = array_to_string(args);
 
-		std::vector<json const*> parameter_names;
+		const auto elem_count = args.size();
+		const bool infix = (elem_count % 2) == 1;
+		//std::vector<json const*> parameter_names;
 		std::vector<json> arguments;
-		arguments.reserve(elem_count / 2 + infix);
+		if (elem_count > 1) /// Hack for calling a one-optional-param prefix function with no parameters
+		{
+			arguments.reserve(elem_count / 2 + infix);
+			if (infix)
+				arguments.push_back(std::move(args[0]));
+		}
 
-		if (infix)
-			arguments.push_back(std::move(args[0]));
+		/// TODO: We should match the number of arguments to the number of parameters, even for optional parameters:
+		/// For '?' just substitute null (or better yet, discarded)
+		/// For '*' and '+', make the argument an array of all the arguments for that parameter
+		/// To facilitate that, the find_functions function should not only return the candidates,
+		///	but also (if exactly 1 function was found) the number of arguments that should be eaten for each parameter (like std::vector<size_t>)
 
 		for (size_t i = infix; i < elem_count; i += 2)
 		{
-			parameter_names.push_back(&args[i]);
+			//parameter_names.push_back(&args[i]);
 			arguments.push_back(std::move(args[i + 1]));
 		}
 	
-		assert(function_candidates[0]);
-		return call(function_candidates[0], std::move(arguments), std::move(call_frame_desc));
+		return call(func, std::move(arguments), std::move(call_frame_desc));
 	}
 
 	json context::call(defined_function const* func, std::vector<json> arguments, std::string call_frame_desc)

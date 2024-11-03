@@ -11,9 +11,9 @@ namespace translator
 
 	struct defined_function
 	{
-		std::string signature;
+		/// TODO: This could be a std::string_view since we're storing signature strings in m_functions_by_sig
+		std::string signature; /// TODO: or std::vector<std::string> signatures;
 		std::function<json(context&, std::vector<json>)> func;
-		func_tree_element const* element = nullptr;
 		uintptr_t user_data = 0;
 	};
 
@@ -31,5 +31,6 @@ namespace translator
 
 		mutable tree_type child_elements;
 		mutable defined_function* leaf = nullptr;
+		/// TODO: mutable size_t signature_id = 0;
 	};
 }

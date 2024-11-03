@@ -192,7 +192,9 @@ void open_core_lib(context& e)
 	});
 
 	/// TODO: 'default' should be optional
-	///ctx.bind_function("match arg with arg+ default arg?", [](context& e, std::vector<json> args) -> json {
+	///e.bind_function("match arg with arg+ default arg?", [](context& e, std::vector<json> args) -> json {
+	///e.bind_function("match arg [with arg]+ [default arg]?", [](context& e, std::vector<json> args) -> json {
+	///e.bind_function("match arg [with arg]+ default arg", [](context& e, std::vector<json> args) -> json {
 	e.bind_function("match arg with arg* default arg", [](context& e, std::vector<json> args) -> json {
 		e.assert_min_args(args, 2);
 		auto val = e.eval_arg_steal(args, 0);
@@ -387,18 +389,6 @@ void repl()
 	}
 }
 
-TEST_F(translator_f, single_optional_should_work)
-{
-	/// TODO: This is a special case, and I'm not sure I'm keen on actually implementing it
-	/*
-	ctx.bind_function("hello arg?", [](context& e, std::vector<json> args) -> json {
-		return e.array_to_string(args);
-	});
-	EXPECT_EQ(ctx.interpolate("[hello]"), "arg");
-	EXPECT_EQ(ctx.interpolate("[hello world]"), "[world]");
-	*/
-}
-
 TEST_F(translator_f, noarg_functions_work)
 {
 	ctx.bind_function("ass", [](context& e, std::vector<json> args) -> json {
@@ -409,7 +399,9 @@ TEST_F(translator_f, noarg_functions_work)
 
 TEST_F(translator_f, variadic_functions_are_sanely_defined)
 {
-	EXPECT_THROW(ctx.bind_function("hello2 arg? or arg", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
+	EXPECT_NO_THROW(ctx.bind_function("ignoring arg? print arg", [](context& e, std::vector<json> args) -> json { return nullptr; }));
+	EXPECT_NO_THROW(ctx.interpolate("[print arg]"));
+	EXPECT_NO_THROW(ctx.interpolate("[ignoring 'asd' print arg]"));
 
 	ctx.bind_function("boop arg+", [](context& e, std::vector<json> args) -> json {
 		return e.array_to_string(args);
@@ -428,13 +420,63 @@ TEST_F(translator_f, variadic_functions_are_sanely_defined)
 	EXPECT_EQ(ctx.interpolate("[boop2 a boop2 b or e]"), "[a b e]");
 	EXPECT_THROW(ctx.interpolate("[boop2 a or e or c]"), std::runtime_error);
 
-	EXPECT_THROW(ctx.bind_function("boop3 arg*", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }), std::runtime_error);
+	EXPECT_NO_THROW((ctx.bind_function("boop3 arg*", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); })));
+	EXPECT_EQ(ctx.interpolate("[]"), "<null>");
+	EXPECT_NO_THROW(ctx.interpolate("[boop3]"));
+	EXPECT_EQ(ctx.interpolate("[boop3 5]"), "[5]");
+	EXPECT_EQ(ctx.interpolate("[boop3 5 boop3 ass]"), "[5 ass]");
+	EXPECT_THROW(ctx.interpolate("[boop3 5 boop3 ass or ess]"), std::runtime_error);
 
-	EXPECT_THROW(ctx.bind_function("boop4 arg* or arg", [](context& e, std::vector<json> args) -> json { return nullptr; }), std::runtime_error);
-	EXPECT_THROW(ctx.bind_function("arg* meh arg*", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
-	EXPECT_THROW(ctx.bind_function("arg* meh arg", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
-	EXPECT_THROW(ctx.bind_function("arg meh arg*", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_NO_THROW(ctx.bind_function("boop4 arg* or arg", [](context& e, std::vector<json> args) -> json { return nullptr; }));
+	EXPECT_NO_THROW(ctx.interpolate("[or arg]"));
+	EXPECT_THROW(ctx.bind_function("arg* : arg*", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	EXPECT_THROW(ctx.bind_function("arg* : arg", [&](context& e, std::vector<json> args)->json { return nullptr; }), std::runtime_error);
+	
+	ctx.bind_function("arg : arg*", [&](context& e, std::vector<json> args)->json { return nullptr; });
+	ctx.interpolate("[a : b]");
+	ctx.interpolate("[a : b : c]");
+	ctx.interpolate("[a : b : c : d]");
+	EXPECT_THROW(ctx.interpolate("[a : b : c : d or e]"), std::runtime_error);
+
+	ctx.bind_function("arg : arg : arg", [&](context& e, std::vector<json> args)->json { return nullptr; });
+	EXPECT_THROW(ctx.interpolate("[a : b : c]"), std::runtime_error);
+
+	ctx.bind_function("list arg , arg*", list);
+	EXPECT_THROW(ctx.interpolate("[list a, b, c or d]"), std::runtime_error);
+
+	ctx.bind_function("find text or file?", [&](context& e, std::vector<json> args)->json { return nullptr; });
+	EXPECT_NO_THROW(ctx.interpolate("[find hello]"));
+	EXPECT_NO_THROW(ctx.interpolate("[find hello or ass]"));
+	EXPECT_THROW(ctx.interpolate("[find hello or ass or dupa]"), std::runtime_error);
+	EXPECT_THROW(ctx.interpolate("[find hello or ass and dupa]"), std::runtime_error);
 }
+
+TEST_F(translator_f, single_optional_should_work)
+{
+	/// TODO: This is a special case, and I'm not sure I'm keen on actually implementing it
+	///		Though we could just make it syntactic sugar, that is,
+	///		bind "hello arg?" as both "hello" and "hello arg", and
+	///		bind "hello arg*" as both "hello" and "hello arg+"
+	EXPECT_NO_THROW(ctx.bind_function("hello arg?", [](context& e, std::vector<json> args) -> json {
+		return e.array_to_string(args);
+	}));
+	EXPECT_EQ(ctx.interpolate("[hello]"), "[]");
+	EXPECT_EQ(ctx.interpolate("[hello world]"), "[world]");
+	EXPECT_THROW(ctx.interpolate("[oofa]"), std::runtime_error);
+	EXPECT_NO_THROW(ctx.bind_function("hello", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }));
+	EXPECT_THROW(ctx.interpolate("[hello]"), std::runtime_error);
+
+	EXPECT_NO_THROW(ctx.bind_function("hullo arg*", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }));
+	EXPECT_EQ(ctx.interpolate("[hullo]"), "[]");
+	EXPECT_EQ(ctx.interpolate("[hullo world]"), "[world]");
+	EXPECT_EQ(ctx.interpolate("[hullo world hullo ass]"), "[world ass]");
+	EXPECT_EQ(ctx.interpolate("[hullo world hullo ass hullo bees]"), "[world ass bees]");
+	EXPECT_THROW(ctx.interpolate("[hullo world hullo ass hullo bees or not]"), std::runtime_error);
+	EXPECT_THROW(ctx.interpolate("[oofa]"), std::runtime_error);
+	EXPECT_NO_THROW(ctx.bind_function("hullo", [](context& e, std::vector<json> args) -> json { return e.array_to_string(args); }));
+	EXPECT_THROW(ctx.interpolate("[hullo]"), std::runtime_error);
+}
+
 TEST_F(translator_f, simple_bindings_work)
 {
 	//ctx.bind_simple_function("arg + arg", [](int a, int b) { return a + b; });

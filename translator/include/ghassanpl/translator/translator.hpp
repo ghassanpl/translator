@@ -209,7 +209,8 @@ namespace translator
 		tree_type m_prefix_function_tree;
 		tree_type m_infix_function_tree;
 
-		std::map<std::string, defined_function, std::less<>> m_functions_by_sig;
+		std::map<std::string, defined_function, std::less<>> m_functions_by_sig; 
+		/// TODO: or `std::map<std::string, std::pair<defined_function*, size_t>> for multiple signatures
 
 		void find_local_functions(
 			tree_type const& in_tree,
@@ -218,6 +219,8 @@ namespace translator
 			std::set<defined_function const*>& found
 		) const;
 		std::vector<defined_function const*> find_local_functions(std::vector<json> const& arguments) const;
+
+		defined_function* add_function(std::string signature, eval_func func);
 
 		defined_function const* get_unknown_func_handler() const noexcept;
 	};
