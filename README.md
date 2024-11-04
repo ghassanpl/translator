@@ -110,7 +110,7 @@ If a word/string starts with `.` it's treated by the interpreter as a variable n
 ### EBNF Syntax (approximate)
 ```ebnf
 word   = /[^\s,\[\]]+/ | ','
-value  = list | string | "true" | "false" | "null" | number | word
+value  = list | string |  "true" | "false" | "null" | number | word
 list   = '[' [value*] ']'
 string = '"' /[^\"]*/ '"'
        | '\'' /[^\']*/ '\''
@@ -127,7 +127,7 @@ number = /* as parsed by std::from_chars */
 
 ## Roadmap
 
-- [ ] Implement more parameter modifiers ('?' specifically)
+- [x] Implement more parameter modifiers ('?' specifically)
 - [ ] Consider switching to `boost::json` for better performance (needs measuring)
 - [ ] The API needs more extensive querying functionality (should be trivial to add)
 - [ ] Add more built-in functions
@@ -135,6 +135,7 @@ number = /* as parsed by std::from_chars */
 - [ ] Caching of functions based on parameter names (to avoid searching the trees for the same function multiple times); probably as an option since it's going to be a trade-off between memory and speed
 - [ ] Better error handling (currently, errors are just strings)
 - [ ] Ability to fully opt-out of exceptions for error handling
+- [ ] Ability to bind C++ functions with arbitrary params directly (like sol2) without needing to go through the json args
 - [ ] Consider making `bind_function` and `bind_macro` separate functions with different behaviors (`bind_function`-callbacks should be given already-evaluated args)
 - [ ] Consider using a per-context `symbol` table to ease off on some memory pressures (strings everywhere)
 - [ ] Consider moving away from JSON entirely and add a VERY SIMPLE value system (string, symbol, array, object, number, bool, null, error), perhaps even with GC-based memory management
